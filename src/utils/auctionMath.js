@@ -22,8 +22,11 @@ export function calculateMaxSafeBid(purseRemaining, currentSquadCount, minSquad,
 export function calculateProjectedValue(player, preset, marketInflationRate = 1.0) {
   if (!player || !player.rating) return player?.basePrice || 1.0;
   
+  // Normalize rating to 100-point scale if it was given on a 1-10 scale (e.g. 8.5 -> 85)
+  const normRating = player.rating <= 10 ? player.rating * 10 : player.rating;
+  
   // Rating scale baseline is typically 75 - 99
-  const ratingDelta = Math.max(0, player.rating - 75);
+  const ratingDelta = Math.max(0, normRating - 75);
   const factor = (preset.sport === 'cricket' ? 0.35 : 1.2) * marketInflationRate;
   
   const estimated = player.basePrice + (ratingDelta * factor);
@@ -74,7 +77,7 @@ export function getBestCricketXI(players) {
     tryAdd(p);
   }
 
-  const totalRating = xi.reduce((sum, p) => sum + (p.rating || 0), 0);
+  const totalRating = Number(xi.reduce((sum, p) => sum + (Number(p.rating) || 0), 0).toFixed(1));
   const avgRating = xi.length > 0 ? (totalRating / xi.length).toFixed(1) : 0;
 
   const hasWk = xi.some(p => p.role === 'WK');
@@ -147,7 +150,7 @@ export function computeTeamSummary(mySquad, totalPurse, preset) {
   const count = mySquad.length;
   const purseSpent = mySquad.reduce((sum, p) => sum + (p.boughtFor || p.basePrice || 0), 0);
   const purseRemaining = Math.max(0, Number((totalPurse - purseSpent).toFixed(2)));
-  const totalRating = mySquad.reduce((sum, p) => sum + (p.rating || 0), 0);
+  const totalRating = Number(mySquad.reduce((sum, p) => sum + (Number(p.rating) || 0), 0).toFixed(1));
   const avgRating = count > 0 ? Number((totalRating / count).toFixed(1)) : 0;
   const overseasCount = mySquad.filter(p => p.overseas).length;
 

@@ -15,6 +15,7 @@ export default function SquadVisualizer({
   mySquad,
   preset,
   teamSummary,
+  myTeamName = 'My Team',
   onReleasePlayer
 }) {
   const [viewMode, setViewMode] = useState('list'); // 'list' or 'pitch'
@@ -38,7 +39,7 @@ export default function SquadVisualizer({
           </div>
           <div>
             <h3 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
-              My War Squad
+              {myTeamName} Squad
               <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-mono">
                 {mySquad.length} / {preset.maxSquad} SQUAD
               </span>

@@ -17,6 +17,7 @@ import { getStoredApiKey } from '../services/aiService';
 export default function Header({
   tournamentName,
   preset,
+  myTeamName = 'My Team',
   onSwitchSport,
   teamSummary,
   onOpenSettings,
@@ -52,7 +53,7 @@ export default function Header({
                 {tournamentName || 'AUCTION WAR ROOM'}
               </h1>
               <span className="text-[10px] font-mono uppercase px-1.5 py-0.5 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">
-                {preset.sport === 'cricket' ? '🏏 IPL' : '⚽ Football'}
+                👑 {myTeamName}
               </span>
             </div>
             <p className="text-[11px] text-slate-400 font-mono">

@@ -24,6 +24,7 @@ import {
   DEFAULT_RIVALS 
 } from '../data/defaultPlayers';
 import { aiAnalyzePlayerTable, aiExtractTournamentRules, getStoredApiKey } from '../services/aiService';
+import { processRawPlayerRows } from '../utils/csvNormalizer';
 
 export default function NewAuctionWizard({
   isOpen,
@@ -48,11 +49,12 @@ export default function NewAuctionWizard({
   const [isAiAnalyzing, setIsAiAnalyzing] = useState(false);
   const [uploadError, setUploadError] = useState('');
 
-  // Rivals
-  const [rivalsList, setRivalsList] = useState([
+  // Teams & My Team Selection
+  const [allTeams, setAllTeams] = useState([
     'Royal Strikers', 'Alpha Kings', 'Viper Syndicate', 'Apex Warriors', 'Phoenix Titans'
   ]);
-  const [newRivalName, setNewRivalName] = useState('');
+  const [myTeamName, setMyTeamName] = useState('Royal Strikers');
+  const [newTeamInput, setNewTeamInput] = useState('');
 
   if (!isOpen) return null;
 
@@ -115,45 +117,13 @@ export default function NewAuctionWizard({
       const aiMap = await aiAnalyzePlayerTable(headers, rows.slice(0, 10), sport);
       setAiMappingResult(aiMap);
 
-      const colMap = aiMap.columnMap || {};
-
-      // Map rows based on AI intelligence
-      const finalPlayers = rows.map((r, idx) => {
-        const nameVal = r[colMap.name] || r[headers[0]] || `Player ${idx + 1}`;
-        let roleVal = (r[colMap.role] || 'BAT').toString().trim().toUpperCase();
-
-        // Normalize roles if AI provided role mappings
-        if (aiMap.roleMappings && aiMap.roleMappings[roleVal]) {
-          roleVal = aiMap.roleMappings[roleVal];
-        } else if (sport === 'cricket') {
-          if (/keeper|wk/i.test(roleVal)) roleVal = 'WK';
-          else if (/all|ar/i.test(roleVal)) roleVal = 'AR';
-          else if (/bowl/i.test(roleVal)) roleVal = 'BOWL';
-          else roleVal = 'BAT';
-        } else {
-          if (/goal|gk/i.test(roleVal)) roleVal = 'GK';
-          else if (/def|cb|lb|rb/i.test(roleVal)) roleVal = 'DEF';
-          else if (/mid|cm|cam|cdm/i.test(roleVal)) roleVal = 'MID';
-          else roleVal = 'FWD';
-        }
-
-        const ratingVal = colMap.rating && r[colMap.rating] ? parseInt(String(r[colMap.rating]).replace(/[^0-9]/g, ''), 10) : 85;
-        const priceVal = colMap.basePrice && r[colMap.basePrice] ? parseFloat(String(r[colMap.basePrice]).replace(/[^0-9.]/g, '')) : preset.basePriceDefault;
-        const countryVal = colMap.country && r[colMap.country] ? String(r[colMap.country]).trim() : 'Domestic';
-        const isOverseas = colMap.overseas && r[colMap.overseas] ? /yes|true|y|1/i.test(String(r[colMap.overseas])) : (!/india/i.test(countryVal) && sport === 'cricket');
-
-        return {
-          id: `imp-${Date.now()}-${idx}`,
-          name: String(nameVal).trim(),
-          role: roleVal,
-          rating: isNaN(ratingVal) || ratingVal <= 0 ? 85 : ratingVal,
-          basePrice: isNaN(priceVal) || priceVal <= 0 ? preset.basePriceDefault : priceVal,
-          country: countryVal,
-          overseas: isOverseas,
-          tier: r[colMap.tier] ? String(r[colMap.tier]) : 'Uploaded',
-          status: null
-        };
-      }).filter(p => p.name && p.name.length > 1);
+      // Process rows preserving decimal ratings and player names
+      const finalPlayers = processRawPlayerRows(
+        rows, 
+        aiMap.columnMap, 
+        sport, 
+        preset.basePriceDefault
+      );
 
       setParsedPlayers(finalPlayers);
       setIsAiAnalyzing(false);
@@ -191,22 +161,26 @@ export default function NewAuctionWizard({
       ? parsedPlayers
       : (sport === 'cricket' ? DEFAULT_CRICKET_PLAYERS : DEFAULT_FOOTBALL_PLAYERS);
 
-    const formattedRivals = rivalsList.map((name, i) => ({
-      id: `r-${Date.now()}-${i}`,
-      name,
-      purseSpent: 0,
-      playersCount: 0,
-      acquired: []
-    }));
+    // Opposing rival teams (excluding user's designated team)
+    const rivalsOnly = allTeams
+      .filter(t => t.trim().toLowerCase() !== myTeamName.trim().toLowerCase())
+      .map((name, i) => ({
+        id: `r-${Date.now()}-${i}`,
+        name: name.trim(),
+        purseSpent: 0,
+        playersCount: 0,
+        acquired: []
+      }));
 
     const newTournament = {
       id: `tourney-${Date.now()}`,
       name: tournamentName || (sport === 'cricket' ? 'IPL Mega Auction' : 'Football Auction'),
       sport,
       preset,
+      myTeamName: myTeamName.trim() || 'My Team',
       players: finalPlayers,
       mySquad: [],
-      rivals: formattedRivals,
+      rivals: rivalsOnly,
       activePlayerId: finalPlayers[0]?.id || null,
       targetsList: [],
       updatedAt: Date.now()
@@ -528,51 +502,118 @@ export default function NewAuctionWizard({
           </div>
         )}
 
-        {/* STEP 4: RIVALS */}
+        {/* STEP 4: TEAMS & MY TEAM SELECTION */}
         {step === 4 && (
           <div className="space-y-6">
             <div>
-              <h3 className="text-xs font-mono uppercase text-slate-400 block mb-2">
-                Competing Rival Teams ({rivalsList.length})
-              </h3>
-              <p className="text-xs text-slate-400 mb-4">
-                Add the opposing colleges or teams participating in this auction so you can track their remaining budgets in real time.
-              </p>
-
-              <div className="grid grid-cols-2 gap-2 mb-4">
-                {rivalsList.map((rivalName, idx) => (
-                  <div
-                    key={idx}
-                    className="flex items-center justify-between p-2.5 rounded-xl bg-slate-900 border border-slate-800 text-xs font-semibold text-white"
-                  >
-                    <span>{rivalName}</span>
-                    <button
-                      onClick={() => setRivalsList(rivalsList.filter((_, i) => i !== idx))}
-                      className="text-slate-500 hover:text-rose-400 p-1"
-                    >
-                      ✕
-                    </button>
-                  </div>
-                ))}
+              {/* My Team Section */}
+              <div className="p-4 rounded-2xl bg-cyan-950/30 border border-cyan-500/40 mb-6 shadow-glow-cyan">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-lg">👑</span>
+                  <label className="text-xs font-mono font-bold uppercase tracking-wider text-cyan-300">
+                    My Team Name (Active Squad)
+                  </label>
+                </div>
+                <input
+                  type="text"
+                  value={myTeamName}
+                  onChange={(e) => setMyTeamName(e.target.value)}
+                  placeholder="e.g. Chennai Super Kings, IIT Bombay..."
+                  className="w-full bg-slate-900 border border-cyan-500/60 rounded-xl px-4 py-2.5 text-sm font-bold text-white focus:outline-none focus:border-cyan-300"
+                />
+                <p className="text-[11px] text-slate-400 mt-1.5">
+                  All budget mathematics, safe bid ceilings, and roster limits will be calculated for this team.
+                </p>
               </div>
 
+              {/* Tournament Teams List */}
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-xs font-mono uppercase text-slate-400">
+                  Participating Teams in Auction ({allTeams.length})
+                </h3>
+                <span className="text-[11px] text-slate-500">
+                  Click any team below to designate it as your team
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 mb-4 max-h-56 overflow-y-auto pr-1">
+                {allTeams.map((teamName, idx) => {
+                  const isMyTeam = teamName.trim().toLowerCase() === myTeamName.trim().toLowerCase();
+                  return (
+                    <div
+                      key={idx}
+                      onClick={() => setMyTeamName(teamName)}
+                      className={`flex items-center justify-between p-3 rounded-xl border cursor-pointer transition ${
+                        isMyTeam
+                          ? 'bg-cyan-500/20 border-cyan-400 text-white shadow-sm'
+                          : 'bg-slate-900/60 border-slate-800 text-slate-300 hover:border-slate-700'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2 truncate">
+                        <span className="text-xs font-bold truncate">{teamName}</span>
+                        {isMyTeam ? (
+                          <span className="px-1.5 py-0.2 rounded text-[9px] font-mono font-bold uppercase tracking-wider bg-cyan-400 text-slate-950">
+                            👑 My Team
+                          </span>
+                        ) : (
+                          <span className="text-[10px] text-slate-500">Rival</span>
+                        )}
+                      </div>
+
+                      <div className="flex items-center gap-1.5">
+                        {!isMyTeam && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setMyTeamName(teamName);
+                            }}
+                            className="px-2 py-0.5 rounded text-[10px] bg-slate-800 hover:bg-slate-700 text-slate-300"
+                          >
+                            Set Mine
+                          </button>
+                        )}
+                        {allTeams.length > 2 && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              const filtered = allTeams.filter((_, i) => i !== idx);
+                              setAllTeams(filtered);
+                              if (isMyTeam && filtered.length > 0) {
+                                setMyTeamName(filtered[0]);
+                              }
+                            }}
+                            className="text-slate-500 hover:text-rose-400 p-1"
+                            title="Remove team"
+                          >
+                            ✕
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Add New Team Input */}
               <div className="flex gap-2">
                 <input
                   type="text"
-                  value={newRivalName}
-                  onChange={(e) => setNewRivalName(e.target.value)}
-                  placeholder="Add opponent team name (e.g. IIT Bombay)..."
+                  value={newTeamInput}
+                  onChange={(e) => setNewTeamInput(e.target.value)}
+                  placeholder="Add another college / franchise team name..."
                   className="flex-1 bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500"
                 />
                 <button
                   type="button"
                   onClick={() => {
-                    if (newRivalName.trim()) {
-                      setRivalsList([...rivalsList, newRivalName.trim()]);
-                      setNewRivalName('');
+                    if (newTeamInput.trim() && !allTeams.includes(newTeamInput.trim())) {
+                      setAllTeams([...allTeams, newTeamInput.trim()]);
+                      setNewTeamInput('');
                     }
                   }}
-                  className="px-4 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs"
+                  className="px-4 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs transition"
                 >
                   Add Team
                 </button>

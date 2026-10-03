@@ -23,34 +23,62 @@ function getClient(customKey) {
   return new GoogleGenAI({ apiKey });
 }
 
+import { detectColumns, cleanString } from '../utils/csvNormalizer';
+
 /**
  * AI Service: Intelligently parse raw CSV/Excel headers and samples to map to standard schema
  */
 export async function aiAnalyzePlayerTable(headers, sampleRows, sport = 'cricket') {
+  const cleanedHeaders = headers.map(cleanString).filter(Boolean);
+  const fallback = detectColumns(cleanedHeaders, sampleRows, sport);
+
   const client = getClient();
   if (!client) {
-    // Graceful offline heuristic fallback if no API key is configured
-    return fallbackHeaderMapping(headers, sampleRows, sport);
+    return {
+      columnMap: fallback,
+      roleMappings: {},
+      detectedSport: sport,
+      summary: `Auto-detected columns: Name="${fallback.name}", Rating="${fallback.rating || 'None'}", Base Price="${fallback.basePrice || 'None'}", Role="${fallback.role || 'None'}".`
+    };
   }
 
-  const prompt = `You are a sports auction data engineer. We have an uploaded player list spreadsheet with unknown column headers.
-Sport: ${sport}
-Available standard roles for ${sport}:
+  const prompt = `You are an expert sports auction data engineer analyzing an uploaded player spreadsheet.
+Target Sport: ${sport}
+Standard Roles:
 ${sport === 'cricket' ? '- BAT (Batter), BOWL (Bowler), AR (All-Rounder), WK (Wicketkeeper)' : '- GK (Goalkeeper), DEF (Defender), MID (Midfielder), FWD (Forward/Winger)'}
 
-Table Headers:
-${JSON.stringify(headers)}
+Table Column Headers:
+${JSON.stringify(cleanedHeaders)}
 
-First 5 Sample Rows:
+Sample Data (First 5 Rows):
 ${JSON.stringify(sampleRows.slice(0, 5))}
 
-Analyze the columns and return a JSON object with:
-1. "columnMap": an object mapping standard field names ("name", "role", "rating", "basePrice", "country", "overseas", "tier") to the exact header string from the table (or null if not found).
-2. "roleMappings": an object mapping observed role strings in the sheet to the standard role IDs.
-3. "detectedSport": "cricket" or "football".
-4. "summary": brief string describing what columns were detected.
+CRITICAL INSTRUCTIONS:
+1. "name": Identify the EXACT column header containing the athlete/player's full name (e.g., "Virat Kohli", "Kylian Mbappe"). NEVER choose "S.No", "ID", "Index", or role columns.
+2. "rating": Identify the column containing the player skill rating or overall score. Ratings may be decimal numbers (e.g. 8.5, 9.2, 7.8) or 0-100 integers (e.g. 85, 92). Do not confuse with price or rank.
+3. "basePrice": Identify the base price/cost column.
+4. "role": Identify the position/category column.
+5. "country" and "overseas": Identify nationality and overseas/foreign columns if present.
+6. "tier": Identify tier or pool/group if present.
 
-Return ONLY raw JSON, no markdown formatting.`;
+Return a JSON object:
+{
+  "columnMap": {
+    "name": "<exact header or null>",
+    "role": "<exact header or null>",
+    "rating": "<exact header or null>",
+    "basePrice": "<exact header or null>",
+    "country": "<exact header or null>",
+    "overseas": "<exact header or null>",
+    "tier": "<exact header or null>"
+  },
+  "roleMappings": {
+    "<observed_string>": "BAT" | "BOWL" | "AR" | "WK" | "GK" | "DEF" | "MID" | "FWD"
+  },
+  "summary": "Brief explanation of mapped columns"
+}
+
+Return ONLY valid JSON.`;
 
   try {
     const response = await client.models.generateContent({
@@ -62,10 +90,29 @@ Return ONLY raw JSON, no markdown formatting.`;
     });
 
     const parsed = JSON.parse(response.text);
-    return parsed;
+    // Merge with fallback so no essential field is left empty if Gemini missed it
+    const mergedColMap = {
+      name: parsed.columnMap?.name || fallback.name,
+      role: parsed.columnMap?.role || fallback.role,
+      rating: parsed.columnMap?.rating || fallback.rating,
+      basePrice: parsed.columnMap?.basePrice || fallback.basePrice,
+      country: parsed.columnMap?.country || fallback.country,
+      overseas: parsed.columnMap?.overseas || fallback.overseas,
+      tier: parsed.columnMap?.tier || fallback.tier
+    };
+
+    return {
+      ...parsed,
+      columnMap: mergedColMap
+    };
   } catch (err) {
     console.error('Gemini AI mapping error:', err);
-    return fallbackHeaderMapping(headers, sampleRows, sport);
+    return {
+      columnMap: fallback,
+      roleMappings: {},
+      detectedSport: sport,
+      summary: `Fallback auto-detection: Name="${fallback.name}", Rating="${fallback.rating || 'None'}".`
+    };
   }
 }
 

@@ -378,6 +378,7 @@ export default function App() {
       <Header
         tournamentName={activeTournament.name}
         preset={activeTournament.preset}
+        myTeamName={activeTournament.myTeamName || 'My Team'}
         onSwitchSport={(sport) => {
           updateCurrentTournament({
             sport,
@@ -410,6 +411,7 @@ export default function App() {
               preset={activeTournament.preset}
               teamSummary={teamSummary}
               rivals={activeTournament.rivals || []}
+              myTeamName={activeTournament.myTeamName || 'My Team'}
               onWinPlayer={handleWinPlayer}
               onSellToRival={handleSellToRival}
               onMarkUnsold={handleMarkUnsold}
@@ -444,6 +446,7 @@ export default function App() {
               mySquad={activeTournament.mySquad || []}
               preset={activeTournament.preset}
               teamSummary={teamSummary}
+              myTeamName={activeTournament.myTeamName || 'My Team'}
               onReleasePlayer={handleReleasePlayer}
             />
           </div>

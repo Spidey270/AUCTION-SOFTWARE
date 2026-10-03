@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Upload, FileSpreadsheet, X, CheckCircle2, AlertCircle } from 'lucide-react';
 import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
+import { detectColumns, processRawPlayerRows } from '../utils/csvNormalizer';
 
 export default function ImportModal({
   isOpen,
@@ -60,34 +61,14 @@ export default function ImportModal({
       return;
     }
 
-    const mapped = rows.map((row, index) => {
-      // Find key matching roughly "name", "player", "player name"
-      const nameKey = Object.keys(row).find(k => /name|player/i.test(k)) || Object.keys(row)[0];
-      const roleKey = Object.keys(row).find(k => /role|category|position|pos/i.test(k));
-      const ratingKey = Object.keys(row).find(k => /rating|ovr|points|score/i.test(k));
-      const priceKey = Object.keys(row).find(k => /price|base|baseprice|cost/i.test(k));
-      const countryKey = Object.keys(row).find(k => /country|nat|nationality/i.test(k));
-      const overseasKey = Object.keys(row).find(k => /overseas|foreign|os/i.test(k));
+    const headers = Object.keys(rows[0]);
+    const detected = detectColumns(headers, rows.slice(0, 10), preset.sport);
+    const mapped = processRawPlayerRows(rows, detected, preset.sport, preset.basePriceDefault);
 
-      const rawRole = roleKey ? String(row[roleKey]).trim().toUpperCase() : 'BAT';
-      const rawPrice = priceKey ? parseFloat(String(row[priceKey]).replace(/[^0-9.]/g, '')) : preset.basePriceDefault;
-      const rawRating = ratingKey ? parseInt(String(row[ratingKey]).replace(/[^0-9]/g, ''), 10) : 85;
-      const isOverseas = overseasKey 
-        ? /yes|true|y|1/i.test(String(row[overseasKey])) 
-        : countryKey ? !/india/i.test(String(row[countryKey])) : false;
-
-      return {
-        id: `imp-${Date.now()}-${index}`,
-        name: row[nameKey] ? String(row[nameKey]).trim() : `Player ${index + 1}`,
-        role: rawRole || 'BAT',
-        country: countryKey ? String(row[countryKey]).trim() : (isOverseas ? 'Overseas' : 'Domestic'),
-        overseas: isOverseas,
-        rating: isNaN(rawRating) || rawRating <= 0 ? 85 : rawRating,
-        basePrice: isNaN(rawPrice) || rawPrice <= 0 ? preset.basePriceDefault : rawPrice,
-        tier: 'Uploaded',
-        status: null
-      };
-    }).filter(p => p.name && p.name.length > 1);
+    if (mapped.length === 0) {
+      setErrorMsg('Could not find valid player records. Please check column headers.');
+      return;
+    }
 
     setParsedPlayers(mapped);
   };
