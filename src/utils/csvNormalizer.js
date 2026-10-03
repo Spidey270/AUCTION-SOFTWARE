@@ -197,11 +197,19 @@ export function processRawPlayerRows(rows, detectedMap, sport = 'cricket', defau
     if (colMap.overseas && row[colMap.overseas] !== undefined) {
       const osVal = cleanString(row[colMap.overseas]);
       overseas = /yes|true|y|1|os|overseas|foreign/i.test(osVal);
-    } else if (country && country !== 'Domestic') {
-      overseas = sport === 'cricket' ? !/india/i.test(country) : false;
+      // also check if they explicitly wrote "indian" or "domestic" in the overseas column
+      if (/no|false|n|0|india|ind|domestic/i.test(osVal)) {
+        overseas = false;
+      }
+    } else if (country && !/domestic/i.test(country)) {
+      if (sport === 'cricket') {
+        // If country is India, IND, or Indian -> not overseas
+        overseas = !/india|ind(ian)?/i.test(country);
+      } else {
+        // For football, if there's a country column and it's not "Domestic/Home", assume it might be overseas if it's explicitly marked as Foreign
+        overseas = /foreign|overseas/i.test(country);
+      }
     }
-
-    // 6. Tier
     const tier = colMap.tier && row[colMap.tier] ? cleanString(row[colMap.tier]) : 'Uploaded';
 
     return {

@@ -58,8 +58,9 @@ CRITICAL INSTRUCTIONS:
 2. "rating": Identify the column containing the player skill rating or overall score. Ratings may be decimal numbers (e.g. 8.5, 9.2, 7.8) or 0-100 integers (e.g. 85, 92). Do not confuse with price or rank.
 3. "basePrice": Identify the base price/cost column.
 4. "role": Identify the position/category column.
-5. "country" and "overseas": Identify nationality and overseas/foreign columns if present.
-6. "tier": Identify tier or pool/group if present.
+5. "country": Identify nationality if present.
+6. "overseas": Identify the column that indicates if a player is foreign/overseas (e.g. "Foreign", "Indian", "Overseas", "Is Foreign").
+7. "tier": Identify tier or pool/group if present.
 
 Return a JSON object:
 {
