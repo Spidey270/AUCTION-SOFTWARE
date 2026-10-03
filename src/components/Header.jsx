@@ -12,7 +12,7 @@ import {
   Key,
   Bot
 } from 'lucide-react';
-import { getStoredApiKey } from '../services/aiService';
+import { hasAiConfigured } from '../services/aiService';
 
 export default function Header({
   tournamentName,
@@ -28,7 +28,7 @@ export default function Header({
   onToggleAiDrawer,
   onOpenApiKeyModal
 }) {
-  const hasApiKey = Boolean(getStoredApiKey());
+  const hasApiKey = hasAiConfigured();
 
   return (
     <header className="sticky top-0 z-40 bg-[#090d16]/90 backdrop-blur-md border-b border-slate-800 px-6 py-3">
@@ -165,4 +165,5 @@ export default function Header({
     </header>
   );
 }
+
 

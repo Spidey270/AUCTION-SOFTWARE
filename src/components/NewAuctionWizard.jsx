@@ -23,7 +23,7 @@ import {
   DEFAULT_FOOTBALL_PLAYERS, 
   DEFAULT_RIVALS 
 } from '../data/defaultPlayers';
-import { aiAnalyzePlayerTable, aiExtractTournamentRules, getStoredApiKey } from '../services/aiService';
+import { aiAnalyzePlayerTable, aiExtractTournamentRules, hasAiConfigured } from '../services/aiService';
 import { processRawPlayerRows } from '../utils/csvNormalizer';
 
 export default function NewAuctionWizard({
@@ -87,7 +87,7 @@ export default function NewAuctionWizard({
   if (!isOpen) return null;
 
 
-  const hasApiKey = Boolean(getStoredApiKey());
+  const hasApiKey = hasAiConfigured();
 
   const handleSelectSport = (selected) => {
     setSport(selected);
@@ -752,3 +752,4 @@ export default function NewAuctionWizard({
     </div>
   );
 }
+

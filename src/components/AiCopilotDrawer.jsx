@@ -12,7 +12,7 @@ import {
   HelpCircle,
   Cpu
 } from 'lucide-react';
-import { aiGetTacticalAdvice, getStoredApiKey } from '../services/aiService';
+import { aiGetTacticalAdvice, hasAiConfigured } from '../services/aiService';
 
 export default function AiCopilotDrawer({
   isOpen,
@@ -30,7 +30,7 @@ export default function AiCopilotDrawer({
   const [customQuery, setCustomQuery] = useState('');
   const [activeTab, setActiveTab] = useState('should_i_bid');
 
-  const hasApiKey = Boolean(getStoredApiKey());
+  const hasApiKey = hasAiConfigured();
 
   const fetchAdvice = async (type = activeTab, userQ = '') => {
     setIsLoading(true);
@@ -262,4 +262,5 @@ export default function AiCopilotDrawer({
     </div>
   );
 }
+
 

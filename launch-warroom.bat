@@ -1,6 +1,6 @@
 @echo off
 setlocal
-cd /d "C:\Users\arjun\.gemini\antigravity\scratch\auction-warroom"
+cd /d "E:\AuctionSoftware"
 set PATH=C:\Users\arjun\.gemini\antigravity\scratch\tools\node-v20.18.0-win-x64;%PATH%
 
 :: Check if server is already responding on 5173
@@ -18,3 +18,4 @@ if exist "C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe" (
 ) else (
     start http://127.0.0.1:5173
 )
+

@@ -15,7 +15,7 @@ import {
   Cpu,
   HelpCircle
 } from 'lucide-react';
-import { getStoredApiKey } from '../services/aiService';
+import { hasAiConfigured } from '../services/aiService';
 
 export default function HomeScreen({
   savedTournaments,
@@ -25,7 +25,7 @@ export default function HomeScreen({
   onOpenApiKeyModal,
   onQuickStart
 }) {
-  const hasApiKey = Boolean(getStoredApiKey());
+  const hasApiKey = hasAiConfigured();
 
   return (
     <div className="min-h-screen bg-[#090d16] text-slate-100 flex flex-col font-sans select-none">
@@ -252,4 +252,5 @@ export default function HomeScreen({
     </div>
   );
 }
+
 

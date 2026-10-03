@@ -1,33 +1,96 @@
-import { GoogleGenAI } from '@google/genai';
+import { detectColumns, cleanString } from '../utils/csvNormalizer';
 
-const API_KEY_STORAGE = 'warroom_gemini_api_key';
+// ─── AI Provider Config ───────────────────────────────────────────────────────
+const AI_CONFIG_KEY = 'warroom_ai_config';
 
-export function getStoredApiKey() {
-  return localStorage.getItem(API_KEY_STORAGE) || '';
-}
-
-export function setStoredApiKey(key) {
-  if (key) {
-    localStorage.setItem(API_KEY_STORAGE, key.trim());
-  } else {
-    localStorage.removeItem(API_KEY_STORAGE);
+export function getAiConfig() {
+  try {
+    const stored = localStorage.getItem(AI_CONFIG_KEY);
+    return stored
+      ? JSON.parse(stored)
+      : { provider: 'openai', openaiKey: '', geminiKey: '' };
+  } catch {
+    return { provider: 'openai', openaiKey: '', geminiKey: '' };
   }
 }
 
-/**
- * Creates a Gemini client with stored or passed key
- */
-function getClient(customKey) {
-  const apiKey = customKey || getStoredApiKey();
-  if (!apiKey) return null;
-  return new GoogleGenAI({ apiKey });
+export function setAiConfig({ provider, openaiKey = '', geminiKey = '' }) {
+  localStorage.setItem(AI_CONFIG_KEY, JSON.stringify({ provider, openaiKey, geminiKey }));
 }
 
-import { detectColumns, cleanString } from '../utils/csvNormalizer';
+/** Returns true if a valid API key has been saved for the active provider */
+export function hasAiConfigured() {
+  const { provider, openaiKey, geminiKey } = getAiConfig();
+  return provider === 'gemini' ? Boolean(geminiKey?.trim()) : Boolean(openaiKey?.trim());
+}
 
-/**
- * AI Service: Intelligently parse raw CSV/Excel headers and samples to map to standard schema
- */
+// Legacy helpers kept for backward compat
+export function getStoredApiKey() {
+  const cfg = getAiConfig();
+  return cfg.provider === 'gemini' ? cfg.geminiKey : cfg.openaiKey;
+}
+export function setStoredApiKey(key) {
+  const cfg = getAiConfig();
+  cfg.openaiKey = key?.trim() || '';
+  setAiConfig(cfg);
+}
+
+// ─── Unified client factory ───────────────────────────────────────────────────
+function getClient() {
+  const { provider, openaiKey, geminiKey } = getAiConfig();
+
+  if (provider === 'gemini') {
+    const apiKey = geminiKey?.trim();
+    if (!apiKey) return null;
+    // Lazy-load Gemini SDK to avoid crash if package absent
+    return {
+      models: {
+        async generateContent({ model, contents, config }) {
+          const { GoogleGenAI } = await import('@google/genai');
+          const ai = new GoogleGenAI({ apiKey });
+          const response = await ai.models.generateContent({
+            model: model || 'gemini-2.5-flash',
+            contents,
+            config
+          });
+          return { text: response.text };
+        }
+      }
+    };
+  }
+
+  // Default: OpenAI — uses native browser fetch
+  const apiKey = openaiKey?.trim();
+  if (!apiKey) return null;
+  return {
+    models: {
+      async generateContent({ model, contents, config }) {
+        const openaiModel = model && !model.includes('gemini') ? model : 'gpt-4o-mini';
+        const body = {
+          model: openaiModel,
+          messages: [{ role: 'user', content: contents }],
+          temperature: 0.2
+        };
+        if (config?.responseMimeType === 'application/json') {
+          body.response_format = { type: 'json_object' };
+        }
+        const res = await fetch('https://api.openai.com/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${apiKey}`
+          },
+          body: JSON.stringify(body)
+        });
+        const data = await res.json();
+        if (data.error) throw new Error(data.error.message);
+        return { text: data.choices?.[0]?.message?.content ?? '' };
+      }
+    }
+  };
+}
+
+// ─── AI Feature: Analyze CSV/Excel player table ───────────────────────────────
 export async function aiAnalyzePlayerTable(headers, sampleRows, sport = 'cricket') {
   const cleanedHeaders = headers.map(cleanString).filter(Boolean);
   const fallback = detectColumns(cleanedHeaders, sampleRows, sport);
@@ -54,12 +117,12 @@ Sample Data (First 5 Rows):
 ${JSON.stringify(sampleRows.slice(0, 5))}
 
 CRITICAL INSTRUCTIONS:
-1. "name": Identify the EXACT column header containing the athlete/player's full name (e.g., "Virat Kohli", "Kylian Mbappe"). NEVER choose "S.No", "ID", "Index", or role columns.
-2. "rating": Identify the column containing the player skill rating or overall score. Ratings may be decimal numbers (e.g. 8.5, 9.2, 7.8) or 0-100 integers (e.g. 85, 92). Do not confuse with price or rank.
+1. "name": Identify the EXACT column header containing the athlete/player's full name. NEVER choose "S.No", "ID", "Index", or role columns.
+2. "rating": Identify the column containing the player skill rating or overall score. Ratings may be decimal numbers (e.g. 8.5, 9.2) or integers (e.g. 85, 92). Do not confuse with price or rank.
 3. "basePrice": Identify the base price/cost column.
 4. "role": Identify the position/category column.
 5. "country": Identify nationality if present.
-6. "overseas": Identify the column that indicates if a player is foreign/overseas (e.g. "Foreign", "Indian", "Overseas", "Is Foreign").
+6. "overseas": Identify the column indicating if a player is foreign/overseas (e.g. "Foreign", "Indian", "Overseas", "Is Foreign").
 7. "tier": Identify tier or pool/group if present.
 
 Return a JSON object:
@@ -83,15 +146,12 @@ Return ONLY valid JSON.`;
 
   try {
     const response = await client.models.generateContent({
-      model: 'gemini-2.5-flash',
+      model: 'gpt-4o-mini',
       contents: prompt,
-      config: {
-        responseMimeType: 'application/json'
-      }
+      config: { responseMimeType: 'application/json' }
     });
 
     const parsed = JSON.parse(response.text);
-    // Merge with fallback so no essential field is left empty if Gemini missed it
     const mergedColMap = {
       name: parsed.columnMap?.name || fallback.name,
       role: parsed.columnMap?.role || fallback.role,
@@ -101,13 +161,9 @@ Return ONLY valid JSON.`;
       overseas: parsed.columnMap?.overseas || fallback.overseas,
       tier: parsed.columnMap?.tier || fallback.tier
     };
-
-    return {
-      ...parsed,
-      columnMap: mergedColMap
-    };
+    return { ...parsed, columnMap: mergedColMap };
   } catch (err) {
-    console.error('Gemini AI mapping error:', err);
+    console.error('AI CSV mapping error:', err);
     return {
       columnMap: fallback,
       roleMappings: {},
@@ -117,15 +173,13 @@ Return ONLY valid JSON.`;
   }
 }
 
-/**
- * AI Service: Parse tournament rule text (e.g. from brochure, PDF, or WhatsApp message)
- */
+// ─── AI Feature: Extract tournament rules from raw text ───────────────────────
 export async function aiExtractTournamentRules(rawRuleText, currentPreset) {
   const client = getClient();
   if (!client) {
     return {
       success: false,
-      error: 'Please enter your Gemini API Key in Settings to enable AI Rule Extraction.'
+      error: 'Please enter your OpenAI API Key in Settings to enable AI Rule Extraction.'
     };
   }
 
@@ -146,42 +200,29 @@ Return a JSON object containing:
 - "maxSquad": integer (maximum squad ceiling)
 - "maxOverseas": integer (maximum foreign/overseas players allowed)
 - "basePriceDefault": number (standard minimum base price)
-- "roleLimits": object where keys are role IDs (e.g., "BAT", "BOWL", "AR", "WK" for cricket or "GK", "DEF", "MID", "FWD" for football) and values are the integer maximum allowed for that role. (Omit if not specified).
+- "roleLimits": object where keys are role IDs (e.g., "BAT", "BOWL", "AR", "WK") and values are the integer maximum allowed for that role. (Omit if not specified.)
 - "explanation": 2-3 sentence summary of rules extracted
 
 Return ONLY valid JSON.`;
 
   try {
     const response = await client.models.generateContent({
-      model: 'gemini-2.5-flash',
+      model: 'gpt-4o-mini',
       contents: prompt,
-      config: {
-        responseMimeType: 'application/json'
-      }
+      config: { responseMimeType: 'application/json' }
     });
-
-    return {
-      success: true,
-      rules: JSON.parse(response.text)
-    };
+    return { success: true, rules: JSON.parse(response.text) };
   } catch (err) {
-    console.error('Gemini AI Rule Extraction failed:', err);
-    return {
-      success: false,
-      error: err.message || 'Failed to extract rules with AI.'
-    };
+    console.error('AI Rule Extraction failed:', err);
+    return { success: false, error: err.message || 'Failed to extract rules with AI.' };
   }
 }
 
-/**
- * Detects the rating scale ceiling from the full player pool.
- * e.g. if max rating is 15, scale is 0-15; if max is 9.8, scale is 0-10; if max is 98, scale is 0-100.
- */
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 function detectRatingScale(allPlayers) {
   if (!allPlayers || allPlayers.length === 0) return { maxRating: 100, ratingCap: 100 };
   const maxRating = Math.max(...allPlayers.map(p => Number(p.rating) || 0));
   if (maxRating === 0) return { maxRating: 100, ratingCap: 100 };
-  // Round up to a clean ceiling: 10, 15, 20, 50, 100, etc.
   let ratingCap = maxRating;
   if (maxRating <= 10) ratingCap = 10;
   else if (maxRating <= 15) ratingCap = 15;
@@ -191,9 +232,7 @@ function detectRatingScale(allPlayers) {
   return { maxRating, ratingCap };
 }
 
-/**
- * AI Service: Live Tactical War Room Copilot
- */
+// ─── AI Feature: Live Tactical War Room Copilot ───────────────────────────────
 export async function aiGetTacticalAdvice({
   activePlayer,
   currentBid,
@@ -205,8 +244,6 @@ export async function aiGetTacticalAdvice({
   customQuestion = ''
 }) {
   const client = getClient();
-
-  // Detect rating scale from full player pool
   const { maxRating, ratingCap } = detectRatingScale(allPlayers);
 
   if (!client) {
@@ -220,7 +257,6 @@ export async function aiGetTacticalAdvice({
     acquired: r.acquired?.length || 0
   }));
 
-  // Compute rich context for the AI
   const purseRemaining = teamSummary.purseRemaining;
   const squadCount = teamSummary.count;
   const slotsLeft = preset.maxSquad - squadCount;
@@ -228,12 +264,8 @@ export async function aiGetTacticalAdvice({
   const reserveNeeded = mandatorySlotsLeft * preset.basePriceDefault;
   const spendableNow = Math.max(0, purseRemaining - reserveNeeded);
 
-  // Normalize rating relative to detected scale ceiling (ratingCap = max possible in this pool)
   const rawRating = activePlayer ? (Number(activePlayer.rating) || 0) : 0;
-  const ratingPct = ratingCap > 0 ? rawRating / ratingCap : 0; // 0.0 – 1.0
-
-  // Fair market ceiling: proportional to purse × rating quality
-  // Top-rated player (ratingPct=1.0) can justify up to ~30% of total purse
+  const ratingPct = ratingCap > 0 ? rawRating / ratingCap : 0;
   const marketCeiling = Number(
     Math.min(spendableNow, preset.totalPurse * ratingPct * 0.3 + (activePlayer?.basePrice || 0) * 3).toFixed(1)
   );
@@ -286,7 +318,7 @@ QUERY: "${queryType}"
 CUSTOM QUESTION: "${customQuestion}"
 
 IMPORTANT STRATEGY PRINCIPLES:
-1. maxWalkAwayPrice must reflect the player's true value in context of the 0-${ratingCap} scale. A rating of ${rawRating}/${ratingCap} means this player is ${(ratingPct * 100).toFixed(0)}% as good as the best player.
+1. maxWalkAwayPrice must reflect the player's true value on the 0-${ratingCap} scale. Rating ${rawRating}/${ratingCap} means this player is ${(ratingPct * 100).toFixed(0)}% as good as the best player in the pool.
 2. Top-quality players (top 20% of the scale) can justify 15-30% of total purse.
 3. Be AGGRESSIVE when purse is available and squad slots are open.
 4. If rivals are low on funds, push bids without fear.
@@ -305,23 +337,18 @@ Return ONLY raw JSON.`;
 
   try {
     const response = await client.models.generateContent({
-      model: 'gemini-2.5-flash',
+      model: 'gpt-4o-mini',
       contents: prompt,
-      config: {
-        responseMimeType: 'application/json'
-      }
+      config: { responseMimeType: 'application/json' }
     });
-
     return JSON.parse(response.text);
   } catch (err) {
-    console.error('Gemini tactical advice error:', err);
+    console.error('AI tactical advice error:', err);
     return generateOfflineTacticalAdvice(activePlayer, currentBid, teamSummary, rivals, preset, queryType, ratingCap);
   }
 }
 
-/**
- * Fallback tactical advice if offline
- */
+// ─── Offline Fallback ─────────────────────────────────────────────────────────
 function generateOfflineTacticalAdvice(activePlayer, currentBid, teamSummary, rivals, preset, queryType, ratingCap = 100) {
   if (!activePlayer) {
     return {
@@ -333,29 +360,19 @@ function generateOfflineTacticalAdvice(activePlayer, currentBid, teamSummary, ri
     };
   }
 
-  const maxSafe = teamSummary.maxSafeBid;
-  
-  // Normalize rating using the detected pool ceiling (e.g. 0-15, 0-10, 0-100)
   const rawRating = Number(activePlayer.rating) || 0;
-  const ratingPct = ratingCap > 0 ? rawRating / ratingCap : 0; // 0.0 – 1.0
-  
-  // Fair value proportional to rating quality relative to the pool's scale
-  // Top player (100%) → up to 25% of total purse; average (50%) → ~12%
+  const ratingPct = ratingCap > 0 ? rawRating / ratingCap : 0;
   const fairValue = Number(
-    Math.max(
-      activePlayer.basePrice,
-      (preset.totalPurse * ratingPct * 0.25) + activePlayer.basePrice
-    ).toFixed(1)
+    Math.max(activePlayer.basePrice, (preset.totalPurse * ratingPct * 0.25) + activePlayer.basePrice).toFixed(1)
   );
 
-  // Slots and reserve context
   const slotsLeft = preset.maxSquad - teamSummary.count;
   const mandatoryLeft = Math.max(0, preset.minSquad - teamSummary.count);
   const reserveNeeded = mandatoryLeft * preset.basePriceDefault;
   const spendableNow = Math.max(0, teamSummary.purseRemaining - reserveNeeded);
-
   const maxWalkAway = Number(Math.min(spendableNow, fairValue * 1.2).toFixed(1));
-  const isAffordable = currentBid <= maxSafe && currentBid <= spendableNow;
+
+  const isAffordable = currentBid <= teamSummary.maxSafeBid && currentBid <= spendableNow;
   const isGoodValue = currentBid <= fairValue * 0.9;
   const isOverpriced = currentBid > fairValue * 1.25;
 
@@ -383,4 +400,3 @@ function generateOfflineTacticalAdvice(activePlayer, currentBid, teamSummary, ri
     fallbackPlan: `If price exceeds ${preset.currency}${maxWalkAway}, save purse for remaining ${activePlayer.role} targets later in the auction.`
   };
 }
-
