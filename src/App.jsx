@@ -408,6 +408,7 @@ export default function App() {
           <div className="lg:col-span-8">
             <HammerArena
               activePlayer={activePlayer}
+              allPlayers={activeTournament.players}
               preset={activeTournament.preset}
               teamSummary={teamSummary}
               rivals={activeTournament.rivals || []}

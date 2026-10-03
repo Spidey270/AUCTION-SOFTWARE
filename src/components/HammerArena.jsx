@@ -19,6 +19,7 @@ import { calculateProjectedValue } from '../utils/auctionMath';
 
 export default function HammerArena({
   activePlayer,
+  allPlayers,
   preset,
   teamSummary,
   rivals,
@@ -63,7 +64,7 @@ export default function HammerArena({
   }
 
   const roleObj = preset.roles.find(r => r.id === activePlayer.role);
-  const fairValue = calculateProjectedValue(activePlayer, preset);
+  const fairValue = calculateProjectedValue(activePlayer, preset, 1.0, allPlayers);
   
   // Rule Checks
   const isOverSafeBid = currentBid > teamSummary.maxSafeBid;

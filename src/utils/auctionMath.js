@@ -16,21 +16,32 @@ export function calculateMaxSafeBid(purseRemaining, currentSquadCount, minSquad,
   return Math.max(0, Number(maxBid.toFixed(2)));
 }
 
-/**
- * Suggests fair value ceiling based on player rating and remaining purse inflation
- */
-export function calculateProjectedValue(player, preset, marketInflationRate = 1.0) {
+export function calculateProjectedValue(player, preset, marketInflationRate = 1.0, allPlayers = []) {
   if (!player || !player.rating) return player?.basePrice || 1.0;
   
-  // Normalize rating to 100-point scale if it was given on a 1-10 scale (e.g. 8.5 -> 85)
-  const normRating = player.rating <= 10 ? player.rating * 10 : player.rating;
+  // Dynamically determine the maximum rating in the pool
+  let maxRatingInPool = 100;
+  if (allPlayers && allPlayers.length > 0) {
+    maxRatingInPool = Math.max(...allPlayers.map(p => Number(p.rating) || 0));
+  } else {
+    maxRatingInPool = Number(player.rating) > 15 ? 100 : (Number(player.rating) > 10 ? 15 : 10);
+  }
+
+  // Normalize rating to a 0-100 percentage relative to the best player in the pool
+  const rawRating = Number(player.rating) || 0;
+  const ratingPercentile = maxRatingInPool > 0 ? (rawRating / maxRatingInPool) : 0;
   
-  // Rating scale baseline is typically 75 - 99
-  const ratingDelta = Math.max(0, normRating - 75);
-  const factor = (preset.sport === 'cricket' ? 0.35 : 1.2) * marketInflationRate;
+  // The 'fair value' should scale up exponentially for elite players.
+  // Base price + premium based on how close they are to the absolute best player.
+  const premiumCurve = Math.pow(ratingPercentile, 3); // Cubed to make top players significantly more expensive
+
+  // Calculate the total purse-based theoretical maximum a top player could go for.
+  // Generally, an absolute marquee player goes for 15-20% of a team's total purse.
+  const topPlayerExpectedValue = preset.totalPurse * 0.18; 
   
-  const estimated = player.basePrice + (ratingDelta * factor);
-  return Number(estimated.toFixed(1));
+  const expectedValue = player.basePrice + (premiumCurve * topPlayerExpectedValue * marketInflationRate);
+
+  return Number(Math.max(player.basePrice, expectedValue).toFixed(1));
 }
 
 /**

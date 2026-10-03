@@ -13,6 +13,7 @@ export default function RivalsRadar({
   const [newTeamName, setNewTeamName] = useState('');
   const [editingId, setEditingId] = useState(null);
   const [editPurse, setEditPurse] = useState('');
+  const [expandedRival, setExpandedRival] = useState(null);
 
   const handleCreate = (e) => {
     e.preventDefault();
@@ -160,7 +161,7 @@ export default function RivalsRadar({
               </div>
 
               {/* Purse Bar */}
-              <div className="w-full bg-slate-800/80 rounded-full h-1.5 mt-2.5 overflow-hidden">
+              <div className="w-full bg-slate-800/80 rounded-full h-1.5 mt-2.5 overflow-hidden cursor-pointer" onClick={() => setExpandedRival(expandedRival === rival.id ? null : rival.id)} title="Click to view players">
                 <div
                   className={`h-full rounded-full transition-all duration-500 ${
                     pursePercent > 50
@@ -172,6 +173,35 @@ export default function RivalsRadar({
                   style={{ width: `${pursePercent}%` }}
                 ></div>
               </div>
+              
+              {/* Expand Toggle */}
+              <button 
+                className="w-full text-center mt-2 text-[10px] text-slate-500 hover:text-slate-300 font-semibold tracking-wider uppercase transition"
+                onClick={() => setExpandedRival(expandedRival === rival.id ? null : rival.id)}
+              >
+                {expandedRival === rival.id ? 'Hide Players ▲' : 'View Players ▼'}
+              </button>
+
+              {/* Acquired Players List */}
+              {expandedRival === rival.id && (
+                <div className="mt-2 pt-2 border-t border-slate-800/60 max-h-32 overflow-y-auto pr-1 space-y-1">
+                  {rival.acquired && rival.acquired.length > 0 ? (
+                    rival.acquired.map((p, idx) => (
+                      <div key={idx} className="flex items-center justify-between bg-slate-900/40 p-1.5 rounded border border-slate-800/50">
+                        <div className="flex flex-col">
+                          <span className="text-[11px] font-bold text-white truncate max-w-[100px]" title={p.name}>{p.name}</span>
+                          <span className="text-[9px] text-slate-500 uppercase">{p.role} · {p.rating} OVR</span>
+                        </div>
+                        <span className="text-[10px] font-mono font-bold text-cyan-300">
+                          {preset.currency}{p.boughtFor?.toFixed(2)}
+                        </span>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="text-[10px] text-center text-slate-500 py-2 italic">No players bought yet.</div>
+                  )}
+                </div>
+              )}
 
             </div>
           );

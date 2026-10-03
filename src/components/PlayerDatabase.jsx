@@ -220,7 +220,7 @@ export default function PlayerDatabase({
             ) : (
               filteredPlayers.map((player) => {
                 const roleObj = preset.roles.find(r => r.id === player.role);
-                const fairVal = calculateProjectedValue(player, preset);
+                const fairVal = calculateProjectedValue(player, preset, 1.0, players);
                 const isTarget = targetsList.includes(player.id);
                 const isActive = activePlayerId === player.id;
 
