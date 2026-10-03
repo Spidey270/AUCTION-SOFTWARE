@@ -146,6 +146,7 @@ Return a JSON object containing:
 - "maxSquad": integer (maximum squad ceiling)
 - "maxOverseas": integer (maximum foreign/overseas players allowed)
 - "basePriceDefault": number (standard minimum base price)
+- "roleLimits": object where keys are role IDs (e.g., "BAT", "BOWL", "AR", "WK" for cricket or "GK", "DEF", "MID", "FWD" for football) and values are the integer maximum allowed for that role. (Omit if not specified).
 - "explanation": 2-3 sentence summary of rules extracted
 
 Return ONLY valid JSON.`;

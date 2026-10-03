@@ -64,11 +64,18 @@ export default function HammerArena({
 
   const roleObj = preset.roles.find(r => r.id === activePlayer.role);
   const fairValue = calculateProjectedValue(activePlayer, preset);
+  
+  // Rule Checks
   const isOverSafeBid = currentBid > teamSummary.maxSafeBid;
   const isOverMaxSquad = teamSummary.isMaxSquadFull;
   const isOverForeign = activePlayer.overseas && teamSummary.overseasLimitHit;
-  const isLegalForMe = !isOverSafeBid && !isOverMaxSquad && !isOverForeign;
+  
+  // Role Limit Check
+  const maxForThisRole = preset[`maxRole_${activePlayer.role}`];
+  const currentCountForRole = teamSummary.roleCounts ? teamSummary.roleCounts[activePlayer.role] || 0 : 0;
+  const isOverRoleLimit = maxForThisRole !== undefined && currentCountForRole >= maxForThisRole;
 
+  const isLegalForMe = !isOverSafeBid && !isOverMaxSquad && !isOverForeign && !isOverRoleLimit;
   // Valuation status
   let valuationTag = { label: 'FAIR VALUE', color: 'text-cyan-400 border-cyan-500/30 bg-cyan-500/10' };
   if (currentBid <= fairValue * 0.8) {
@@ -128,11 +135,11 @@ export default function HammerArena({
                 </span>
                 {activePlayer.overseas ? (
                   <span className="px-2 py-0.5 rounded text-[11px] font-semibold bg-rose-500/10 text-rose-300 border border-rose-500/30">
-                    ✈️ Overseas ({activePlayer.country})
+                    ✈️ {preset.sport === 'cricket' ? 'Foreign' : 'Overseas'} ({activePlayer.country})
                   </span>
                 ) : (
                   <span className="px-2 py-0.5 rounded text-[11px] font-semibold bg-blue-500/10 text-blue-300 border border-blue-500/30">
-                    📍 Domestic ({activePlayer.country})
+                    📍 {preset.sport === 'cricket' ? 'Indian' : 'Domestic'} ({activePlayer.country})
                   </span>
                 )}
                 {activePlayer.tier && (
@@ -233,10 +240,15 @@ export default function HammerArena({
                     <AlertTriangle className="w-4 h-4 flex-shrink-0" />
                     <span>Squad limit reached ({preset.maxSquad} players). Cannot buy more players.</span>
                   </div>
-                ) : isOverForeign ? (
-                  <div className="flex items-center gap-2 text-xs font-semibold text-amber-400 bg-amber-500/10 px-3 py-1.5 rounded-lg border border-amber-500/30">
+                ) : isOverRoleLimit ? (
+                  <div className="flex items-center gap-2 text-xs font-semibold text-rose-400 bg-rose-500/10 px-3 py-1.5 rounded-lg border border-rose-500/30">
                     <AlertTriangle className="w-4 h-4 flex-shrink-0" />
-                    <span>Overseas cap reached ({preset.maxOverseas} max). Cannot bid on foreign player.</span>
+                    <span>Role limit reached ({maxForThisRole} max for {roleObj?.label}). Cannot bid.</span>
+                  </div>
+                ) : isOverForeign ? (
+                  <div className="flex items-center gap-2 text-xs font-semibold text-rose-400 bg-rose-500/10 px-3 py-1.5 rounded-lg border border-rose-500/30">
+                    <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+                    <span>Overseas limit reached ({preset.maxOverseas} max). Cannot bid on foreign player.</span>
                   </div>
                 ) : (
                   <div className="flex items-center gap-2 text-xs font-semibold text-emerald-400 bg-emerald-500/10 px-3 py-1.5 rounded-lg border border-emerald-500/30">

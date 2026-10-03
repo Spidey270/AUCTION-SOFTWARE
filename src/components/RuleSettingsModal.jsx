@@ -7,6 +7,11 @@ export default function RuleSettingsModal({
   preset,
   onSavePreset
 }) {
+  const initialRoleLimits = {};
+  preset.roles.forEach(r => {
+    initialRoleLimits[`maxRole_${r.id}`] = preset[`maxRole_${r.id}`] || '';
+  });
+
   const [formData, setFormData] = useState({
     totalPurse: preset.totalPurse,
     minSquad: preset.minSquad,
@@ -14,14 +19,15 @@ export default function RuleSettingsModal({
     maxOverseas: preset.maxOverseas,
     basePriceDefault: preset.basePriceDefault,
     currency: preset.currency,
-    unit: preset.unit
+    unit: preset.unit,
+    ...initialRoleLimits
   });
 
   if (!isOpen) return null;
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    onSavePreset({
+    const updatedPreset = {
       ...preset,
       totalPurse: parseFloat(formData.totalPurse) || 100,
       minSquad: parseInt(formData.minSquad, 10) || 15,
@@ -30,7 +36,13 @@ export default function RuleSettingsModal({
       basePriceDefault: parseFloat(formData.basePriceDefault) || 0.5,
       currency: formData.currency,
       unit: formData.unit
+    };
+    preset.roles.forEach(r => {
+      const val = parseInt(formData[`maxRole_${r.id}`], 10);
+      if (!isNaN(val)) updatedPreset[`maxRole_${r.id}`] = val;
+      else delete updatedPreset[`maxRole_${r.id}`];
     });
+    onSavePreset(updatedPreset);
     onClose();
   };
 
@@ -136,6 +148,25 @@ export default function RuleSettingsModal({
                 onChange={(e) => setFormData({ ...formData, basePriceDefault: e.target.value })}
                 className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white font-mono"
               />
+            </div>
+          </div>
+
+          {/* Role Caps */}
+          <div className="border-t border-slate-800 pt-3">
+            <label className="text-[11px] font-mono uppercase text-slate-400 block mb-2">Max Players per Role (Optional)</label>
+            <div className="grid grid-cols-2 gap-3">
+              {preset.roles.map(r => (
+                <div key={r.id} className="flex items-center gap-2">
+                  <span className={`text-[10px] uppercase font-bold w-12 ${r.color}`}>{r.id}</span>
+                  <input
+                    type="number"
+                    placeholder="No limit"
+                    value={formData[`maxRole_${r.id}`]}
+                    onChange={(e) => setFormData({ ...formData, [`maxRole_${r.id}`]: e.target.value })}
+                    className="w-full bg-slate-900 border border-slate-700 rounded-xl px-2 py-1.5 text-sm text-white font-mono"
+                  />
+                </div>
+              ))}
             </div>
           </div>
 

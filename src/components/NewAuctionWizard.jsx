@@ -108,16 +108,26 @@ export default function NewAuctionWizard({
     setIsExtractingRules(false);
 
     if (res.success && res.rules) {
-      setPreset(prev => ({
-        ...prev,
-        totalPurse: res.rules.totalPurse || prev.totalPurse,
-        currency: res.rules.currency || prev.currency,
-        unit: res.rules.unit || prev.unit,
-        minSquad: res.rules.minSquad || prev.minSquad,
-        maxSquad: res.rules.maxSquad || prev.maxSquad,
-        maxOverseas: res.rules.maxOverseas || prev.maxOverseas,
-        basePriceDefault: res.rules.basePriceDefault || prev.basePriceDefault
-      }));
+      setPreset(prev => {
+        const nextPreset = {
+          ...prev,
+          totalPurse: res.rules.totalPurse || prev.totalPurse,
+          currency: res.rules.currency || prev.currency,
+          unit: res.rules.unit || prev.unit,
+          minSquad: res.rules.minSquad || prev.minSquad,
+          maxSquad: res.rules.maxSquad || prev.maxSquad,
+          maxOverseas: res.rules.maxOverseas || prev.maxOverseas,
+          basePriceDefault: res.rules.basePriceDefault || prev.basePriceDefault
+        };
+        // Apply dynamic role limits if found by AI
+        if (res.rules.roleLimits) {
+          Object.keys(res.rules.roleLimits).forEach(roleId => {
+            const val = parseInt(res.rules.roleLimits[roleId], 10);
+            if (!isNaN(val)) nextPreset[`maxRole_${roleId}`] = val;
+          });
+        }
+        return nextPreset;
+      });
       setRulesExtractMsg(`✓ Extracted: ${res.rules.explanation || 'Rules configured successfully!'}`);
     } else {
       setRulesExtractMsg(`⚠️ ${res.error || 'Failed to extract. Please adjust inputs manually.'}`);

@@ -176,7 +176,7 @@ export default function PlayerDatabase({
               : 'bg-slate-900 text-slate-400 border-slate-800 hover:text-slate-200'
           }`}
         >
-          ✈️ Overseas Only
+          ✈️ {preset.sport === 'cricket' ? 'Foreign' : 'Overseas'} Only
         </button>
       </div>
 

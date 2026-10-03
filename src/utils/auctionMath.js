@@ -168,6 +168,17 @@ export function computeTeamSummary(mySquad, totalPurse, preset) {
 
   const pointsPerCurrency = purseSpent > 0 ? (totalRating / purseSpent).toFixed(2) : '0.00';
 
+  // Calculate role distribution
+  const roleCounts = {};
+  preset.roles.forEach(r => roleCounts[r.id] = 0);
+  mySquad.forEach(p => {
+    if (roleCounts[p.role] !== undefined) {
+      roleCounts[p.role]++;
+    } else {
+      roleCounts[p.role] = 1;
+    }
+  });
+
   return {
     count,
     purseSpent: Number(purseSpent.toFixed(2)),
@@ -175,6 +186,7 @@ export function computeTeamSummary(mySquad, totalPurse, preset) {
     totalRating,
     avgRating,
     overseasCount,
+    roleCounts,
     maxSafeBid,
     pointsPerCurrency,
     bestXI,
