@@ -50,11 +50,36 @@ export default function NewAuctionWizard({
   const [uploadError, setUploadError] = useState('');
 
   // Teams & My Team Selection
-  const [allTeams, setAllTeams] = useState([
-    'Royal Strikers', 'Alpha Kings', 'Viper Syndicate', 'Apex Warriors', 'Phoenix Titans'
-  ]);
+  const DEFAULT_TEAM_POOL = ['Royal Strikers', 'Alpha Kings', 'Viper Syndicate', 'Apex Warriors', 'Phoenix Titans'];
+  const [numTeams, setNumTeams] = useState(5);
+  const [allTeams, setAllTeams] = useState(DEFAULT_TEAM_POOL.slice(0, 5));
   const [myTeamName, setMyTeamName] = useState('Royal Strikers');
   const [newTeamInput, setNewTeamInput] = useState('');
+
+  const handleNumTeamsChange = (delta) => {
+    const next = Math.min(5, Math.max(2, numTeams + delta));
+    setNumTeams(next);
+    if (next > allTeams.length) {
+      // Add default teams to fill up
+      const extras = DEFAULT_TEAM_POOL.filter(t => !allTeams.includes(t)).slice(0, next - allTeams.length);
+      const filled = [...allTeams, ...extras];
+      // If still short, generate placeholders
+      while (filled.length < next) filled.push(`Team ${filled.length + 1}`);
+      setAllTeams(filled);
+    } else if (next < allTeams.length) {
+      // Trim from end — but never remove myTeam
+      let trimmed = [...allTeams];
+      while (trimmed.length > next) {
+        const lastIdx = trimmed.length - 1;
+        if (trimmed[lastIdx].trim().toLowerCase() === myTeamName.trim().toLowerCase()) {
+          trimmed.splice(lastIdx - 1, 1); // remove the one before myTeam
+        } else {
+          trimmed.pop();
+        }
+      }
+      setAllTeams(trimmed);
+    }
+  };
 
   if (!isOpen) return null;
 
@@ -506,8 +531,53 @@ export default function NewAuctionWizard({
         {step === 4 && (
           <div className="space-y-6">
             <div>
+              {/* Number of Teams Stepper */}
+              <div className="p-4 rounded-2xl bg-slate-900/60 border border-slate-700 mb-5">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <label className="text-xs font-mono font-bold uppercase tracking-wider text-slate-300 block mb-0.5">
+                      Number of Teams in Auction
+                    </label>
+                    <p className="text-[11px] text-slate-500">
+                      Max 5 (including yours) · Min 2
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <button
+                      type="button"
+                      onClick={() => handleNumTeamsChange(-1)}
+                      disabled={numTeams <= 2}
+                      className="w-9 h-9 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white font-bold text-lg flex items-center justify-center disabled:opacity-30 transition"
+                    >−</button>
+                    <span className="text-3xl font-black text-white w-8 text-center">{numTeams}</span>
+                    <button
+                      type="button"
+                      onClick={() => handleNumTeamsChange(+1)}
+                      disabled={numTeams >= 5}
+                      className="w-9 h-9 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white font-bold text-lg flex items-center justify-center disabled:opacity-30 transition"
+                    >+</button>
+                  </div>
+                </div>
+                <div className="flex gap-1.5 mt-3">
+                  {[2,3,4,5].map(n => (
+                    <button
+                      key={n}
+                      type="button"
+                      onClick={() => handleNumTeamsChange(n - numTeams)}
+                      className={`flex-1 py-1.5 rounded-lg text-xs font-bold border transition ${
+                        numTeams === n
+                          ? 'bg-cyan-500/20 border-cyan-500/50 text-cyan-300'
+                          : 'bg-slate-800 border-slate-700 text-slate-400 hover:border-slate-600'
+                      }`}
+                    >
+                      {n} Teams
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               {/* My Team Section */}
-              <div className="p-4 rounded-2xl bg-cyan-950/30 border border-cyan-500/40 mb-6 shadow-glow-cyan">
+              <div className="p-4 rounded-2xl bg-cyan-950/30 border border-cyan-500/40 mb-5 shadow-glow-cyan">
                 <div className="flex items-center gap-2 mb-2">
                   <span className="text-lg">👑</span>
                   <label className="text-xs font-mono font-bold uppercase tracking-wider text-cyan-300">
@@ -529,10 +599,10 @@ export default function NewAuctionWizard({
               {/* Tournament Teams List */}
               <div className="flex items-center justify-between mb-3">
                 <h3 className="text-xs font-mono uppercase text-slate-400">
-                  Participating Teams in Auction ({allTeams.length})
+                  Teams ({allTeams.length} / {numTeams}) · {allTeams.length - 1} rival{allTeams.length - 1 !== 1 ? 's' : ''}
                 </h3>
                 <span className="text-[11px] text-slate-500">
-                  Click any team below to designate it as your team
+                  Click a team below to designate it as yours
                 </span>
               </div>
 
@@ -602,18 +672,20 @@ export default function NewAuctionWizard({
                   type="text"
                   value={newTeamInput}
                   onChange={(e) => setNewTeamInput(e.target.value)}
-                  placeholder="Add another college / franchise team name..."
-                  className="flex-1 bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500"
+                  placeholder={allTeams.length >= numTeams ? `Max ${numTeams} teams reached` : 'Add another college / franchise team name...'}
+                  disabled={allTeams.length >= numTeams}
+                  className="flex-1 bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500 disabled:opacity-40"
                 />
                 <button
                   type="button"
                   onClick={() => {
-                    if (newTeamInput.trim() && !allTeams.includes(newTeamInput.trim())) {
+                    if (newTeamInput.trim() && !allTeams.includes(newTeamInput.trim()) && allTeams.length < numTeams) {
                       setAllTeams([...allTeams, newTeamInput.trim()]);
                       setNewTeamInput('');
                     }
                   }}
-                  className="px-4 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs transition"
+                  disabled={allTeams.length >= numTeams || !newTeamInput.trim()}
+                  className="px-4 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs transition disabled:opacity-40"
                 >
                   Add Team
                 </button>

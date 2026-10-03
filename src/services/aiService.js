@@ -191,43 +191,82 @@ export async function aiGetTacticalAdvice({
   const rivalsBrief = rivals.map(r => ({
     name: r.name,
     purseRemaining: Number((preset.totalPurse - (r.purseSpent || 0)).toFixed(1)),
-    squadCount: r.playersCount || 0
+    squadCount: r.playersCount || 0,
+    acquired: r.acquired?.length || 0
   }));
 
+  // Compute rich context for the AI
+  const purseRemaining = teamSummary.purseRemaining;
+  const squadCount = teamSummary.count;
+  const slotsLeft = preset.maxSquad - squadCount;
+  const mandatorySlotsLeft = Math.max(0, preset.minSquad - squadCount);
+  const reserveNeeded = mandatorySlotsLeft * preset.basePriceDefault;
+  const spendableNow = Math.max(0, purseRemaining - reserveNeeded);
+
+  // Fair market ceiling: scale-aware (ratings can be 0-10 or 0-100)
+  const normRating = activePlayer
+    ? (activePlayer.rating <= 10 ? activePlayer.rating * 10 : activePlayer.rating)
+    : 75;
+  // Typical purse fraction for a top player
+  const ratingFraction = Math.max(0, (normRating - 60) / 40); // 0-1 for 60-100 rated players
+  const marketCeiling = Number(
+    Math.min(spendableNow, preset.totalPurse * ratingFraction * 0.3 + (activePlayer?.basePrice || 0) * 3).toFixed(1)
+  );
+
   const myTeamBrief = {
-    purseRemaining: teamSummary.purseRemaining,
+    purseRemaining,
+    spendableNow,
+    marketCeiling,
     maxSafeBid: teamSummary.maxSafeBid,
-    squadCount: teamSummary.count,
-    minSquadNeeded: preset.minSquad,
+    squadCount,
+    slotsLeft,
+    mandatorySlotsStillNeeded: mandatorySlotsLeft,
+    minSquad: preset.minSquad,
+    maxSquad: preset.maxSquad,
     totalRating: teamSummary.totalRating,
+    avgRating: teamSummary.avgRating,
     overseasCount: teamSummary.overseasCount,
     maxOverseas: preset.maxOverseas,
-    currentRosterRoles: teamSummary.bestXI?.xi?.map(p => `${p.role}: ${p.name}`) || []
+    pointsPerCurrency: teamSummary.pointsPerCurrency,
+    currentBestXIRoles: teamSummary.bestXI?.xi?.map(p => `${p.role}: ${p.name}`) || []
   };
 
-  const prompt = `You are an elite, cutthroat sports auction strategist (mock ${preset.sport} auction).
-Your job is to give immediate, high-leverage tactical advice to help win this college tournament auction.
+  const prompt = `You are an elite, aggressive sports auction strategist in a MOCK ${preset.sport?.toUpperCase()} COLLEGE TOURNAMENT AUCTION. Your SOLE objective is to help the user WIN by building the HIGHEST-RATED squad within budget.
 
-ACTIVE PLAYER ON BLOCK:
+TOURNAMENT CONTEXT:
+- Total purse per team: ${preset.currency}${preset.totalPurse} ${preset.unit}
+- This is a competitive auction — players going unsold or for low prices means wasted opportunity.
+- The winner is decided by CUMULATIVE SQUAD RATING.
+
+ACTIVE PLAYER ON THE BLOCK:
 ${JSON.stringify(activePlayer)}
 
 CURRENT HAMMER BID: ${preset.currency}${currentBid} ${preset.unit}
-MY SQUAD STATUS:
+PLAYER'S BASE PRICE: ${preset.currency}${activePlayer?.basePrice} ${preset.unit}
+
+MY TEAM STATUS:
 ${JSON.stringify(myTeamBrief)}
 
 RIVAL TEAMS:
 ${JSON.stringify(rivalsBrief)}
 
-QUERY INTENT: "${queryType}"
-ADDITIONAL QUESTION: "${customQuestion}"
+QUERY: "${queryType}"
+CUSTOM QUESTION: "${customQuestion}"
 
-Provide a tactical response in JSON:
+IMPORTANT STRATEGY PRINCIPLES:
+1. The maxWalkAwayPrice should be the REAL ceiling considering this player's value to the team, NOT just the base price. Good players can justify spending 15-40% of the total purse.
+2. If my squad has slotsLeft and purse to spend, be AGGRESSIVE — leaving purse unspent at the end of the auction is losing.
+3. Consider rival purse depletion — if rivals are low on funds, we can push bids guilt-free.
+4. If this player fills a squad gap (missing role) they are worth MORE than a player who duplicates existing roles.
+5. "PASS" only if the price is genuinely beyond fair value OR we literally cannot afford it.
+
+Respond in JSON:
 {
   "recommendation": "BID_AGGRESSIVELY" | "BID_CAUTIOUSLY" | "LET_RIVALS_OVERPAY" | "FORCE_PRICE_PUSH" | "PASS",
-  "maxWalkAwayPrice": number (exact price to stop bidding),
-  "tacticalReasoning": "2-3 punchy, high-impact bullet points explaining the decision, rival budget exploitation, or squad fit",
-  "trapOpportunity": "Details on whether a rival team can be trapped into overpaying, or null",
-  "fallbackPlan": "Alternative player role or backup target if we let this one go"
+  "maxWalkAwayPrice": number (real ceiling price in ${preset.unit} — must be meaningful, not just base price),
+  "tacticalReasoning": "2-3 high-impact bullet points: player value, squad fit, rival budget situation",
+  "trapOpportunity": "Specific rival to trap or null",
+  "fallbackPlan": "What role to target next if we pass on this player"
 }
 
 Return ONLY raw JSON.`;
@@ -249,28 +288,6 @@ Return ONLY raw JSON.`;
 }
 
 /**
- * Fallback mapping if offline or no API key
- */
-function fallbackHeaderMapping(headers, sampleRows, sport) {
-  const findMatch = (pattern) => headers.find(h => pattern.test(String(h).trim()));
-
-  return {
-    columnMap: {
-      name: findMatch(/name|player|fullname|cricketer|footballer/i) || headers[0],
-      role: findMatch(/role|pos|position|category|type|specialism/i) || headers[1],
-      rating: findMatch(/rating|ovr|overall|points|score|pts/i) || null,
-      basePrice: findMatch(/base|price|cost|reserve|starting/i) || null,
-      country: findMatch(/country|nation|nationality|nat/i) || null,
-      overseas: findMatch(/overseas|foreign|os/i) || null,
-      tier: findMatch(/tier|pool|group|set/i) || null
-    },
-    roleMappings: {},
-    detectedSport: sport,
-    summary: 'Heuristic pattern matching applied. You can adjust column mapping manually.'
-  };
-}
-
-/**
  * Fallback tactical advice if offline
  */
 function generateOfflineTacticalAdvice(activePlayer, currentBid, teamSummary, rivals, preset, queryType) {
@@ -285,27 +302,55 @@ function generateOfflineTacticalAdvice(activePlayer, currentBid, teamSummary, ri
   }
 
   const maxSafe = teamSummary.maxSafeBid;
-  const isAffordable = currentBid <= maxSafe;
-  const ratingDelta = Math.max(0, activePlayer.rating - 75);
-  const fairValue = activePlayer.basePrice + (ratingDelta * (preset.sport === 'cricket' ? 0.35 : 1.2));
+  
+  // Normalize rating to 0-100 scale (handles both 8.5 and 85 formats)
+  const normRating = activePlayer.rating <= 10 ? activePlayer.rating * 10 : activePlayer.rating;
+  
+  // Fair value as % of total purse based on player quality
+  // - Rating 90+ → top tier → can justify up to 25% of total purse
+  // - Rating 75–89 → solid → 10-18% of purse
+  // - Rating <75 → depth → base price to 8%
+  const ratingFraction = Math.max(0, (normRating - 60) / 40); // 0-1 range for 60-100
+  const fairValue = Number(
+    Math.max(
+      activePlayer.basePrice,
+      (preset.totalPurse * ratingFraction * 0.25) + activePlayer.basePrice
+    ).toFixed(1)
+  );
+
+  // Slots and reserve context
+  const slotsLeft = preset.maxSquad - teamSummary.count;
+  const mandatoryLeft = Math.max(0, preset.minSquad - teamSummary.count);
+  const reserveNeeded = mandatoryLeft * preset.basePriceDefault;
+  const spendableNow = Math.max(0, teamSummary.purseRemaining - reserveNeeded);
+
+  const maxWalkAway = Number(Math.min(spendableNow, fairValue * 1.2).toFixed(1));
+  const isAffordable = currentBid <= maxSafe && currentBid <= spendableNow;
+  const isGoodValue = currentBid <= fairValue * 0.9;
+  const isOverpriced = currentBid > fairValue * 1.25;
 
   let recommendation = 'BID_CAUTIOUSLY';
-  if (!isAffordable) {
-    recommendation = 'PASS';
-  } else if (currentBid <= fairValue * 0.85) {
+  if (!isAffordable || isOverpriced) {
+    recommendation = slotsLeft > 5 ? 'LET_RIVALS_OVERPAY' : 'PASS';
+  } else if (isGoodValue) {
     recommendation = 'BID_AGGRESSIVELY';
-  } else if (currentBid > fairValue * 1.3) {
+  } else if (currentBid > fairValue * 1.1) {
     recommendation = 'LET_RIVALS_OVERPAY';
   }
 
-  const maxWalkAway = Math.min(maxSafe, Number((fairValue * 1.15).toFixed(1)));
+  const richestRival = rivals.reduce((best, r) => {
+    const rem = preset.totalPurse - (r.purseSpent || 0);
+    return rem > (preset.totalPurse - (best?.purseSpent || 0)) ? r : best;
+  }, rivals[0]);
 
   return {
     recommendation,
     maxWalkAwayPrice: maxWalkAway,
-    tacticalReasoning: `Player OVR is ${activePlayer.rating}. Calculated fair ceiling is ${preset.currency}${fairValue.toFixed(1)} ${preset.unit}. Safe reserve ceiling allows up to ${preset.currency}${maxSafe.toFixed(1)}.`,
-    trapOpportunity: currentBid > fairValue ? 'Rival is paying above value. Consider exiting to lock up their budget.' : null,
-    fallbackPlan: `If price exceeds ${preset.currency}${maxWalkAway}, hold purse for remaining un-auctioned ${activePlayer.role} targets.`
+    tacticalReasoning: `• Player OVR ${normRating.toFixed(0)}/100 — estimated fair ceiling ${preset.currency}${fairValue} ${preset.unit} (${(ratingFraction * 25).toFixed(0)}% of purse).\n• Current bid ${preset.currency}${currentBid} is ${isGoodValue ? 'BELOW fair value — bid aggressively' : isOverpriced ? 'ABOVE fair value — caution' : 'near fair value — hold ceiling at ' + preset.currency + maxWalkAway}.\n• ${slotsLeft} squad slots remain; ${mandatoryLeft > 0 ? `${mandatoryLeft} mandatory slots still needed` : 'mandatory slots filled'}.`,
+    trapOpportunity: richestRival && currentBid < fairValue * 0.8
+      ? `${richestRival.name} has healthy budget — push bid to drain their purse before the premium tier.`
+      : null,
+    fallbackPlan: `If price exceeds ${preset.currency}${maxWalkAway}, hold purse for remaining ${activePlayer.role} targets later in the auction.`
   };
 }
 
