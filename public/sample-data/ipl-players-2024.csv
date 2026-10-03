@@ -1,0 +1,81 @@
+S.No,Player Name,Role,Base Price (Cr),Rating,Nationality,Foreign
+1,Rishabh Pant,WK,16,9.6,Indian,No
+2,KL Rahul,WK,15,9.4,Indian,No
+3,Ishan Kishan,WK,12,9.1,Indian,No
+4,MS Dhoni,WK,12,9.2,Indian,No
+5,Sanju Samson,WK,14,8.9,Indian,No
+6,Dinesh Karthik,WK,5.5,7.8,Indian,No
+7,Jos Buttler,WK,10,9.3,English,Yes
+8,Quinton de Kock,WK,6.75,8.8,South African,Yes
+9,Nicholas Pooran,WK,10.75,8.6,West Indian,Yes
+10,Jonny Bairstow,WK,6.75,8.4,English,Yes
+11,Virat Kohli,BAT,15,9.8,Indian,No
+12,Rohit Sharma,BAT,16,9.7,Indian,No
+13,Suryakumar Yadav,BAT,8,9.5,Indian,No
+14,Shubman Gill,BAT,8,9.2,Indian,No
+15,Yashasvi Jaiswal,BAT,4,9.0,Indian,No
+16,Shreyas Iyer,BAT,12.25,9.0,Indian,No
+17,Ruturaj Gaikwad,BAT,6,8.8,Indian,No
+18,Tilak Varma,BAT,1.7,8.4,Indian,No
+19,Devdutt Padikkal,BAT,7.75,8.3,Indian,No
+20,Mayank Agarwal,BAT,6.2,8.1,Indian,No
+21,Prithvi Shaw,BAT,7.5,8.2,Indian,No
+22,Abhishek Sharma,BAT,6.5,8.3,Indian,No
+23,David Warner,BAT,6.25,9.1,Australian,Yes
+24,Faf du Plessis,BAT,7,8.9,South African,Yes
+25,Kane Williamson,BAT,3,8.7,New Zealander,Yes
+26,Liam Livingstone,BAT,11.5,8.6,English,Yes
+27,Daryl Mitchell,BAT,14,8.5,New Zealander,Yes
+28,Tim David,BAT,8.25,8.7,Singaporean,Yes
+29,Rilee Rossouw,BAT,4.6,8.2,South African,Yes
+30,Rovman Powell,BAT,1.5,8.1,West Indian,Yes
+31,Hardik Pandya,AR,15,9.4,Indian,No
+32,Ravindra Jadeja,AR,16,9.3,Indian,No
+33,Axar Patel,AR,9,8.8,Indian,No
+34,Sunil Narine,AR,6,8.9,West Indian,Yes
+35,Andre Russell,AR,12,9.2,West Indian,Yes
+36,Sam Curran,AR,18.5,8.7,English,Yes
+37,Ben Stokes,AR,16.25,9.0,English,Yes
+38,Cameron Green,AR,17.5,8.8,Australian,Yes
+39,Marcus Stoinis,AR,7.2,8.4,Australian,Yes
+40,Moeen Ali,AR,8,8.2,English,Yes
+41,Mitchell Marsh,AR,6.6,8.3,Australian,Yes
+42,Jason Holder,AR,5.75,8.3,West Indian,Yes
+43,Washington Sundar,AR,8.75,8.3,Indian,No
+44,Venkatesh Iyer,AR,8,8.4,Indian,No
+45,Krunal Pandya,AR,8.25,8.2,Indian,No
+46,Shivam Dube,AR,4,8.1,Indian,No
+47,Deepak Hooda,AR,5.75,8.0,Indian,No
+48,Nitish Kumar Reddy,AR,5,8.5,Indian,No
+49,Jasprit Bumrah,BOWL,15,9.9,Indian,No
+50,Mohammed Shami,BOWL,6.25,9.4,Indian,No
+51,Mohammed Siraj,BOWL,7,9.1,Indian,No
+52,Yuzvendra Chahal,BOWL,6.5,9.0,Indian,No
+53,Ravichandran Ashwin,BOWL,5,8.8,Indian,No
+54,Bhuvneshwar Kumar,BOWL,12,8.9,Indian,No
+55,Arshdeep Singh,BOWL,4,8.8,Indian,No
+56,Harshal Patel,BOWL,10.75,8.6,Indian,No
+57,Kuldeep Yadav,BOWL,2,8.7,Indian,No
+58,Varun Chakravarthy,BOWL,8,8.6,Indian,No
+59,Ravi Bishnoi,BOWL,4,8.5,Indian,No
+60,Deepak Chahar,BOWL,14,8.5,Indian,No
+61,Prasidh Krishna,BOWL,10,8.4,Indian,No
+62,Akash Deep,BOWL,8.5,8.3,Indian,No
+63,Shardul Thakur,BOWL,10.75,8.2,Indian,No
+64,Avesh Khan,BOWL,10,8.2,Indian,No
+65,Mukesh Kumar,BOWL,5.5,8.0,Indian,No
+66,Umesh Yadav,BOWL,2,8.3,Indian,No
+67,T Natarajan,BOWL,4,8.1,Indian,No
+68,Mitchell Starc,BOWL,24.75,9.2,Australian,Yes
+69,Pat Cummins,BOWL,20.5,9.3,Australian,Yes
+70,Josh Hazlewood,BOWL,7.75,8.9,Australian,Yes
+71,Trent Boult,BOWL,8,9.0,New Zealander,Yes
+72,Kagiso Rabada,BOWL,9.25,9.1,South African,Yes
+73,Anrich Nortje,BOWL,6.5,8.7,South African,Yes
+74,Mark Wood,BOWL,7.5,8.8,English,Yes
+75,Lockie Ferguson,BOWL,10,8.6,New Zealander,Yes
+76,Wanindu Hasaranga,BOWL,10.75,8.8,Sri Lankan,Yes
+77,Alzarri Joseph,BOWL,3.4,8.5,West Indian,Yes
+78,Kyle Jamieson,BOWL,15,8.3,New Zealander,Yes
+79,Matheesha Pathirana,BOWL,2,8.4,Sri Lankan,Yes
+80,Chris Woakes,BOWL,4.2,8.2,English,Yes

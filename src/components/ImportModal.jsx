@@ -127,6 +127,55 @@ export default function ImportModal({
           </div>
         )}
 
+        {/* Sample Datasets */}
+        <div className="mt-4">
+          <div className="text-[11px] font-mono uppercase text-slate-500 mb-2 tracking-wider">
+            ⚡ Quick Load — Built-in Sample Datasets
+          </div>
+          <div className="grid grid-cols-1 gap-2">
+            {[
+              {
+                label: 'IPL 2024 Player Pool',
+                desc: '80 real players · Batters, Bowlers, AR, WK · Indian & Foreign',
+                file: '/sample-data/ipl-players-2024.csv',
+                tag: 'CRICKET',
+                color: 'cyan'
+              }
+            ].map((ds) => (
+              <button
+                key={ds.file}
+                onClick={async () => {
+                  setErrorMsg('');
+                  try {
+                    const res = await fetch(ds.file);
+                    const text = await res.text();
+                    const Papa = (await import('papaparse')).default;
+                    const result = Papa.parse(text, { header: true, skipEmptyLines: true });
+                    processRawRows(result.data);
+                  } catch (e) {
+                    setErrorMsg('Failed to load sample: ' + e.message);
+                  }
+                }}
+                className={`flex items-center gap-3 p-3 rounded-xl border border-${ds.color}-500/30 bg-${ds.color}-500/5 hover:bg-${ds.color}-500/10 transition text-left`}
+              >
+                <div className={`w-8 h-8 rounded-lg bg-${ds.color}-500/20 flex items-center justify-center flex-shrink-0`}>
+                  <FileSpreadsheet className={`w-4 h-4 text-${ds.color}-400`} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-bold text-white">{ds.label}</span>
+                    <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded bg-${ds.color}-500/20 text-${ds.color}-300 uppercase`}>
+                      {ds.tag}
+                    </span>
+                  </div>
+                  <div className="text-[11px] text-slate-400 mt-0.5">{ds.desc}</div>
+                </div>
+                <span className={`text-[11px] font-semibold text-${ds.color}-400 flex-shrink-0`}>Load →</span>
+              </button>
+            ))}
+          </div>
+        </div>
+
         {/* Preview Section */}
         {parsedPlayers.length > 0 && (
           <div className="mt-4">

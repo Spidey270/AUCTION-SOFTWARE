@@ -1,6 +1,6 @@
-import { detectColumns, cleanString } from '../utils/csvNormalizer';
+﻿import { detectColumns, cleanString } from '../utils/csvNormalizer';
 
-// ─── AI Provider Config ───────────────────────────────────────────────────────
+// ΓöÇΓöÇΓöÇ AI Provider Config ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 const AI_CONFIG_KEY = 'warroom_ai_config';
 
 export function getAiConfig() {
@@ -35,7 +35,7 @@ export function setStoredApiKey(key) {
   setAiConfig(cfg);
 }
 
-// ─── Unified client factory ───────────────────────────────────────────────────
+// ΓöÇΓöÇΓöÇ Unified client factory ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 function getClient() {
   const { provider, openaiKey, geminiKey } = getAiConfig();
 
@@ -59,7 +59,7 @@ function getClient() {
     };
   }
 
-  // Default: OpenAI — uses native browser fetch
+  // Default: OpenAI ΓÇö uses native browser fetch
   const apiKey = openaiKey?.trim();
   if (!apiKey) return null;
   return {
@@ -90,7 +90,7 @@ function getClient() {
   };
 }
 
-// ─── AI Feature: Analyze CSV/Excel player table ───────────────────────────────
+// ΓöÇΓöÇΓöÇ AI Feature: Analyze CSV/Excel player table ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 export async function aiAnalyzePlayerTable(headers, sampleRows, sport = 'cricket') {
   const cleanedHeaders = headers.map(cleanString).filter(Boolean);
   const fallback = detectColumns(cleanedHeaders, sampleRows, sport);
@@ -173,7 +173,7 @@ Return ONLY valid JSON.`;
   }
 }
 
-// ─── AI Feature: Extract tournament rules from raw text ───────────────────────
+// ΓöÇΓöÇΓöÇ AI Feature: Extract tournament rules from raw text ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 export async function aiExtractTournamentRules(rawRuleText, currentPreset) {
   const client = getClient();
   if (!client) {
@@ -194,7 +194,7 @@ Return a JSON object containing:
 - "sport": "cricket" or "football" or "custom"
 - "name": tournament title
 - "totalPurse": number (budget per team)
-- "currency": string (e.g. "₹", "$", "€")
+- "currency": string (e.g. "Γé╣", "$", "Γé¼")
 - "unit": string (e.g. "Cr", "M", "Lakhs", "pts")
 - "minSquad": integer (minimum mandatory players required to buy)
 - "maxSquad": integer (maximum squad ceiling)
@@ -218,7 +218,7 @@ Return ONLY valid JSON.`;
   }
 }
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+// ΓöÇΓöÇΓöÇ Helpers ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 function detectRatingScale(allPlayers) {
   if (!allPlayers || allPlayers.length === 0) return { maxRating: 100, ratingCap: 100 };
   const maxRating = Math.max(...allPlayers.map(p => Number(p.rating) || 0));
@@ -232,7 +232,7 @@ function detectRatingScale(allPlayers) {
   return { maxRating, ratingCap };
 }
 
-// ─── AI Feature: Live Tactical War Room Copilot ───────────────────────────────
+// ΓöÇΓöÇΓöÇ AI Feature: Live Tactical War Room Copilot ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 export async function aiGetTacticalAdvice({
   activePlayer,
   currentBid,
@@ -294,11 +294,11 @@ RATING SCALE CONTEXT (CRITICAL):
 - This player pool uses a CUSTOM rating scale: 0 to ${ratingCap}
 - Highest-rated player in the entire pool: ${maxRating} / ${ratingCap}
 - Current player's rating: ${rawRating} / ${ratingCap} (= ${(ratingPct * 100).toFixed(1)}% of max possible)
-- Do NOT assume ratings are out of 10 or 100 — use the 0-${ratingCap} scale above.
+- Do NOT assume ratings are out of 10 or 100 ΓÇö use the 0-${ratingCap} scale above.
 
 TOURNAMENT CONTEXT:
 - Total purse per team: ${preset.currency}${preset.totalPurse} ${preset.unit}
-- This is a competitive auction — the winner is decided by CUMULATIVE SQUAD RATING.
+- This is a competitive auction ΓÇö the winner is decided by CUMULATIVE SQUAD RATING.
 - Leaving purse unspent at the end = losing strategy.
 
 ACTIVE PLAYER ON THE BLOCK:
@@ -348,7 +348,7 @@ Return ONLY raw JSON.`;
   }
 }
 
-// ─── Offline Fallback ─────────────────────────────────────────────────────────
+// ΓöÇΓöÇΓöÇ Offline Fallback ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 function generateOfflineTacticalAdvice(activePlayer, currentBid, teamSummary, rivals, preset, queryType, ratingCap = 100) {
   if (!activePlayer) {
     return {
@@ -393,9 +393,9 @@ function generateOfflineTacticalAdvice(activePlayer, currentBid, teamSummary, ri
   return {
     recommendation,
     maxWalkAwayPrice: maxWalkAway,
-    tacticalReasoning: `• Player rating ${rawRating}/${ratingCap} (${(ratingPct * 100).toFixed(0)}% of pool ceiling) — fair ceiling ${preset.currency}${fairValue} ${preset.unit}.\n• Current bid ${preset.currency}${currentBid} is ${isGoodValue ? 'BELOW fair value — bid aggressively' : isOverpriced ? 'ABOVE fair value — consider passing' : 'near fair value — hold ceiling at ' + preset.currency + maxWalkAway}.\n• ${slotsLeft} squad slots remain; ${mandatoryLeft > 0 ? `${mandatoryLeft} mandatory slots still needed` : 'mandatory slots filled'}.`,
+    tacticalReasoning: `ΓÇó Player rating ${rawRating}/${ratingCap} (${(ratingPct * 100).toFixed(0)}% of pool ceiling) ΓÇö fair ceiling ${preset.currency}${fairValue} ${preset.unit}.\nΓÇó Current bid ${preset.currency}${currentBid} is ${isGoodValue ? 'BELOW fair value ΓÇö bid aggressively' : isOverpriced ? 'ABOVE fair value ΓÇö consider passing' : 'near fair value ΓÇö hold ceiling at ' + preset.currency + maxWalkAway}.\nΓÇó ${slotsLeft} squad slots remain; ${mandatoryLeft > 0 ? `${mandatoryLeft} mandatory slots still needed` : 'mandatory slots filled'}.`,
     trapOpportunity: richestRival && currentBid < fairValue * 0.8
-      ? `${richestRival.name} has healthy budget — push bid to drain their purse before the premium tier.`
+      ? `${richestRival.name} has healthy budget ΓÇö push bid to drain their purse before the premium tier.`
       : null,
     fallbackPlan: `If price exceeds ${preset.currency}${maxWalkAway}, save purse for remaining ${activePlayer.role} targets later in the auction.`
   };
