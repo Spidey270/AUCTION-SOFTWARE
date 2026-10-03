@@ -50,29 +50,32 @@ export default function NewAuctionWizard({
   const [uploadError, setUploadError] = useState('');
 
   // Teams & My Team Selection
-  const DEFAULT_TEAM_POOL = ['Royal Strikers', 'Alpha Kings', 'Viper Syndicate', 'Apex Warriors', 'Phoenix Titans'];
+  const DEFAULT_TEAM_POOL = [
+    'Royal Strikers', 'Alpha Kings', 'Viper Syndicate', 'Apex Warriors', 'Phoenix Titans',
+    'Thunder Wolves', 'Iron Falcons', 'Neon Sharks', 'Storm Raiders', 'Crimson Cobras',
+    'Blue Bolts', 'Golden Eagles', 'Dark Knights', 'Silver Foxes', 'Titan Blazers',
+    'Inferno XI', 'Cyber Wolves', 'Rogue Lions', 'Ghost Panthers', 'Prime Warriors'
+  ];
+  const MAX_TEAMS = 20;
   const [numTeams, setNumTeams] = useState(5);
   const [allTeams, setAllTeams] = useState(DEFAULT_TEAM_POOL.slice(0, 5));
   const [myTeamName, setMyTeamName] = useState('Royal Strikers');
   const [newTeamInput, setNewTeamInput] = useState('');
 
   const handleNumTeamsChange = (delta) => {
-    const next = Math.min(5, Math.max(2, numTeams + delta));
+    const next = Math.min(MAX_TEAMS, Math.max(2, numTeams + delta));
     setNumTeams(next);
     if (next > allTeams.length) {
-      // Add default teams to fill up
       const extras = DEFAULT_TEAM_POOL.filter(t => !allTeams.includes(t)).slice(0, next - allTeams.length);
       const filled = [...allTeams, ...extras];
-      // If still short, generate placeholders
       while (filled.length < next) filled.push(`Team ${filled.length + 1}`);
       setAllTeams(filled);
     } else if (next < allTeams.length) {
-      // Trim from end — but never remove myTeam
       let trimmed = [...allTeams];
       while (trimmed.length > next) {
         const lastIdx = trimmed.length - 1;
         if (trimmed[lastIdx].trim().toLowerCase() === myTeamName.trim().toLowerCase()) {
-          trimmed.splice(lastIdx - 1, 1); // remove the one before myTeam
+          trimmed.splice(lastIdx - 1, 1);
         } else {
           trimmed.pop();
         }
@@ -82,6 +85,7 @@ export default function NewAuctionWizard({
   };
 
   if (!isOpen) return null;
+
 
   const hasApiKey = Boolean(getStoredApiKey());
 
@@ -539,7 +543,7 @@ export default function NewAuctionWizard({
                       Number of Teams in Auction
                     </label>
                     <p className="text-[11px] text-slate-500">
-                      Max 5 (including yours) · Min 2
+                      2 – 20 teams supported (including yours)
                     </p>
                   </div>
                   <div className="flex items-center gap-3">
@@ -553,13 +557,14 @@ export default function NewAuctionWizard({
                     <button
                       type="button"
                       onClick={() => handleNumTeamsChange(+1)}
-                      disabled={numTeams >= 5}
+                      disabled={numTeams >= MAX_TEAMS}
                       className="w-9 h-9 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white font-bold text-lg flex items-center justify-center disabled:opacity-30 transition"
                     >+</button>
                   </div>
                 </div>
+                {/* Quick presets */}
                 <div className="flex gap-1.5 mt-3">
-                  {[2,3,4,5].map(n => (
+                  {[2, 4, 6, 8, 10, 15, 20].map(n => (
                     <button
                       key={n}
                       type="button"
@@ -570,10 +575,13 @@ export default function NewAuctionWizard({
                           : 'bg-slate-800 border-slate-700 text-slate-400 hover:border-slate-600'
                       }`}
                     >
-                      {n} Teams
+                      {n}
                     </button>
                   ))}
                 </div>
+                <p className="text-[10px] text-slate-500 mt-1.5 text-center">
+                  Quick-select presets · use + / − for exact count
+                </p>
               </div>
 
               {/* My Team Section */}
@@ -734,4 +742,3 @@ export default function NewAuctionWizard({
     </div>
   );
 }
-

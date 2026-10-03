@@ -22,6 +22,7 @@ export default function AiCopilotDrawer({
   teamSummary,
   rivals,
   preset,
+  allPlayers = [],
   onOpenApiKeyModal
 }) {
   const [adviceData, setAdviceData] = useState(null);
@@ -40,6 +41,7 @@ export default function AiCopilotDrawer({
       teamSummary,
       rivals,
       preset,
+      allPlayers,
       queryType: type,
       customQuestion: userQ
     });

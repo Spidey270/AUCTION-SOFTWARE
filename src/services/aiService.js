@@ -172,6 +172,24 @@ Return ONLY valid JSON.`;
 }
 
 /**
+ * Detects the rating scale ceiling from the full player pool.
+ * e.g. if max rating is 15, scale is 0-15; if max is 9.8, scale is 0-10; if max is 98, scale is 0-100.
+ */
+function detectRatingScale(allPlayers) {
+  if (!allPlayers || allPlayers.length === 0) return { maxRating: 100, ratingCap: 100 };
+  const maxRating = Math.max(...allPlayers.map(p => Number(p.rating) || 0));
+  if (maxRating === 0) return { maxRating: 100, ratingCap: 100 };
+  // Round up to a clean ceiling: 10, 15, 20, 50, 100, etc.
+  let ratingCap = maxRating;
+  if (maxRating <= 10) ratingCap = 10;
+  else if (maxRating <= 15) ratingCap = 15;
+  else if (maxRating <= 20) ratingCap = 20;
+  else if (maxRating <= 50) ratingCap = 50;
+  else ratingCap = 100;
+  return { maxRating, ratingCap };
+}
+
+/**
  * AI Service: Live Tactical War Room Copilot
  */
 export async function aiGetTacticalAdvice({
@@ -180,12 +198,17 @@ export async function aiGetTacticalAdvice({
   teamSummary,
   rivals,
   preset,
+  allPlayers = [],
   queryType = 'should_i_bid',
   customQuestion = ''
 }) {
   const client = getClient();
+
+  // Detect rating scale from full player pool
+  const { maxRating, ratingCap } = detectRatingScale(allPlayers);
+
   if (!client) {
-    return generateOfflineTacticalAdvice(activePlayer, currentBid, teamSummary, rivals, preset, queryType);
+    return generateOfflineTacticalAdvice(activePlayer, currentBid, teamSummary, rivals, preset, queryType, ratingCap);
   }
 
   const rivalsBrief = rivals.map(r => ({
@@ -203,14 +226,14 @@ export async function aiGetTacticalAdvice({
   const reserveNeeded = mandatorySlotsLeft * preset.basePriceDefault;
   const spendableNow = Math.max(0, purseRemaining - reserveNeeded);
 
-  // Fair market ceiling: scale-aware (ratings can be 0-10 or 0-100)
-  const normRating = activePlayer
-    ? (activePlayer.rating <= 10 ? activePlayer.rating * 10 : activePlayer.rating)
-    : 75;
-  // Typical purse fraction for a top player
-  const ratingFraction = Math.max(0, (normRating - 60) / 40); // 0-1 for 60-100 rated players
+  // Normalize rating relative to detected scale ceiling (ratingCap = max possible in this pool)
+  const rawRating = activePlayer ? (Number(activePlayer.rating) || 0) : 0;
+  const ratingPct = ratingCap > 0 ? rawRating / ratingCap : 0; // 0.0 – 1.0
+
+  // Fair market ceiling: proportional to purse × rating quality
+  // Top-rated player (ratingPct=1.0) can justify up to ~30% of total purse
   const marketCeiling = Number(
-    Math.min(spendableNow, preset.totalPurse * ratingFraction * 0.3 + (activePlayer?.basePrice || 0) * 3).toFixed(1)
+    Math.min(spendableNow, preset.totalPurse * ratingPct * 0.3 + (activePlayer?.basePrice || 0) * 3).toFixed(1)
   );
 
   const myTeamBrief = {
@@ -233,16 +256,23 @@ export async function aiGetTacticalAdvice({
 
   const prompt = `You are an elite, aggressive sports auction strategist in a MOCK ${preset.sport?.toUpperCase()} COLLEGE TOURNAMENT AUCTION. Your SOLE objective is to help the user WIN by building the HIGHEST-RATED squad within budget.
 
+RATING SCALE CONTEXT (CRITICAL):
+- This player pool uses a CUSTOM rating scale: 0 to ${ratingCap}
+- Highest-rated player in the entire pool: ${maxRating} / ${ratingCap}
+- Current player's rating: ${rawRating} / ${ratingCap} (= ${(ratingPct * 100).toFixed(1)}% of max possible)
+- Do NOT assume ratings are out of 10 or 100 — use the 0-${ratingCap} scale above.
+
 TOURNAMENT CONTEXT:
 - Total purse per team: ${preset.currency}${preset.totalPurse} ${preset.unit}
-- This is a competitive auction — players going unsold or for low prices means wasted opportunity.
-- The winner is decided by CUMULATIVE SQUAD RATING.
+- This is a competitive auction — the winner is decided by CUMULATIVE SQUAD RATING.
+- Leaving purse unspent at the end = losing strategy.
 
 ACTIVE PLAYER ON THE BLOCK:
-${JSON.stringify(activePlayer)}
+${JSON.stringify({ ...activePlayer, ratingOutOf: ratingCap })}
 
 CURRENT HAMMER BID: ${preset.currency}${currentBid} ${preset.unit}
 PLAYER'S BASE PRICE: ${preset.currency}${activePlayer?.basePrice} ${preset.unit}
+ESTIMATED MARKET CEILING: ${preset.currency}${marketCeiling} ${preset.unit}
 
 MY TEAM STATUS:
 ${JSON.stringify(myTeamBrief)}
@@ -254,19 +284,19 @@ QUERY: "${queryType}"
 CUSTOM QUESTION: "${customQuestion}"
 
 IMPORTANT STRATEGY PRINCIPLES:
-1. The maxWalkAwayPrice should be the REAL ceiling considering this player's value to the team, NOT just the base price. Good players can justify spending 15-40% of the total purse.
-2. If my squad has slotsLeft and purse to spend, be AGGRESSIVE — leaving purse unspent at the end of the auction is losing.
-3. Consider rival purse depletion — if rivals are low on funds, we can push bids guilt-free.
-4. If this player fills a squad gap (missing role) they are worth MORE than a player who duplicates existing roles.
-5. "PASS" only if the price is genuinely beyond fair value OR we literally cannot afford it.
+1. maxWalkAwayPrice must reflect the player's true value in context of the 0-${ratingCap} scale. A rating of ${rawRating}/${ratingCap} means this player is ${(ratingPct * 100).toFixed(0)}% as good as the best player.
+2. Top-quality players (top 20% of the scale) can justify 15-30% of total purse.
+3. Be AGGRESSIVE when purse is available and squad slots are open.
+4. If rivals are low on funds, push bids without fear.
+5. "PASS" only if price exceeds real value OR we genuinely cannot afford it.
 
 Respond in JSON:
 {
   "recommendation": "BID_AGGRESSIVELY" | "BID_CAUTIOUSLY" | "LET_RIVALS_OVERPAY" | "FORCE_PRICE_PUSH" | "PASS",
-  "maxWalkAwayPrice": number (real ceiling price in ${preset.unit} — must be meaningful, not just base price),
-  "tacticalReasoning": "2-3 high-impact bullet points: player value, squad fit, rival budget situation",
-  "trapOpportunity": "Specific rival to trap or null",
-  "fallbackPlan": "What role to target next if we pass on this player"
+  "maxWalkAwayPrice": number (real ceiling in ${preset.unit}),
+  "tacticalReasoning": "2-3 bullet points with player value on the 0-${ratingCap} scale, squad fit, rival budget intel",
+  "trapOpportunity": "Specific rival to drain budget, or null",
+  "fallbackPlan": "Role or player type to target if we pass"
 }
 
 Return ONLY raw JSON.`;
@@ -283,14 +313,14 @@ Return ONLY raw JSON.`;
     return JSON.parse(response.text);
   } catch (err) {
     console.error('Gemini tactical advice error:', err);
-    return generateOfflineTacticalAdvice(activePlayer, currentBid, teamSummary, rivals, preset, queryType);
+    return generateOfflineTacticalAdvice(activePlayer, currentBid, teamSummary, rivals, preset, queryType, ratingCap);
   }
 }
 
 /**
  * Fallback tactical advice if offline
  */
-function generateOfflineTacticalAdvice(activePlayer, currentBid, teamSummary, rivals, preset, queryType) {
+function generateOfflineTacticalAdvice(activePlayer, currentBid, teamSummary, rivals, preset, queryType, ratingCap = 100) {
   if (!activePlayer) {
     return {
       recommendation: 'PASS',
@@ -303,18 +333,16 @@ function generateOfflineTacticalAdvice(activePlayer, currentBid, teamSummary, ri
 
   const maxSafe = teamSummary.maxSafeBid;
   
-  // Normalize rating to 0-100 scale (handles both 8.5 and 85 formats)
-  const normRating = activePlayer.rating <= 10 ? activePlayer.rating * 10 : activePlayer.rating;
+  // Normalize rating using the detected pool ceiling (e.g. 0-15, 0-10, 0-100)
+  const rawRating = Number(activePlayer.rating) || 0;
+  const ratingPct = ratingCap > 0 ? rawRating / ratingCap : 0; // 0.0 – 1.0
   
-  // Fair value as % of total purse based on player quality
-  // - Rating 90+ → top tier → can justify up to 25% of total purse
-  // - Rating 75–89 → solid → 10-18% of purse
-  // - Rating <75 → depth → base price to 8%
-  const ratingFraction = Math.max(0, (normRating - 60) / 40); // 0-1 range for 60-100
+  // Fair value proportional to rating quality relative to the pool's scale
+  // Top player (100%) → up to 25% of total purse; average (50%) → ~12%
   const fairValue = Number(
     Math.max(
       activePlayer.basePrice,
-      (preset.totalPurse * ratingFraction * 0.25) + activePlayer.basePrice
+      (preset.totalPurse * ratingPct * 0.25) + activePlayer.basePrice
     ).toFixed(1)
   );
 
@@ -346,11 +374,11 @@ function generateOfflineTacticalAdvice(activePlayer, currentBid, teamSummary, ri
   return {
     recommendation,
     maxWalkAwayPrice: maxWalkAway,
-    tacticalReasoning: `• Player OVR ${normRating.toFixed(0)}/100 — estimated fair ceiling ${preset.currency}${fairValue} ${preset.unit} (${(ratingFraction * 25).toFixed(0)}% of purse).\n• Current bid ${preset.currency}${currentBid} is ${isGoodValue ? 'BELOW fair value — bid aggressively' : isOverpriced ? 'ABOVE fair value — caution' : 'near fair value — hold ceiling at ' + preset.currency + maxWalkAway}.\n• ${slotsLeft} squad slots remain; ${mandatoryLeft > 0 ? `${mandatoryLeft} mandatory slots still needed` : 'mandatory slots filled'}.`,
+    tacticalReasoning: `• Player rating ${rawRating}/${ratingCap} (${(ratingPct * 100).toFixed(0)}% of pool ceiling) — fair ceiling ${preset.currency}${fairValue} ${preset.unit}.\n• Current bid ${preset.currency}${currentBid} is ${isGoodValue ? 'BELOW fair value — bid aggressively' : isOverpriced ? 'ABOVE fair value — consider passing' : 'near fair value — hold ceiling at ' + preset.currency + maxWalkAway}.\n• ${slotsLeft} squad slots remain; ${mandatoryLeft > 0 ? `${mandatoryLeft} mandatory slots still needed` : 'mandatory slots filled'}.`,
     trapOpportunity: richestRival && currentBid < fairValue * 0.8
       ? `${richestRival.name} has healthy budget — push bid to drain their purse before the premium tier.`
       : null,
-    fallbackPlan: `If price exceeds ${preset.currency}${maxWalkAway}, hold purse for remaining ${activePlayer.role} targets later in the auction.`
+    fallbackPlan: `If price exceeds ${preset.currency}${maxWalkAway}, save purse for remaining ${activePlayer.role} targets later in the auction.`
   };
 }
 

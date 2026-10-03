@@ -476,6 +476,7 @@ export default function App() {
         teamSummary={teamSummary}
         rivals={activeTournament.rivals || []}
         preset={activeTournament.preset}
+        allPlayers={activeTournament.players || []}
         onOpenApiKeyModal={() => setIsApiKeyOpen(true)}
       />
 
