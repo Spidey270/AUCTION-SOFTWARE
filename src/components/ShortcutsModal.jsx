@@ -6,11 +6,11 @@ export default function ShortcutsModal({ isOpen, onClose }) {
 
   const shortcuts = [
     { key: '/', desc: 'Instant search & filter players in database' },
-    { key: 'W or Enter', desc: 'Hammer Down: Win player for My Team' },
-    { key: 'R', desc: 'Hammer Down: Sell player to selected Rival team' },
+    { key: 'W or Enter', desc: 'Record the current displayed bid as Won by My Team' },
+    { key: 'R', desc: 'Record the current displayed bid as Sold to selected Rival' },
     { key: 'U', desc: 'Pass / Mark player Unsold' },
-    { key: '1, 2, 3, 4', desc: 'Quick bid increment buttons (+0.2, +0.5, +1, +2)' },
-    { key: 'N or Space', desc: 'Next player from the database queue' },
+    { key: '1, 2, 3, 4', desc: 'Raise current bid by the configured increment' },
+    { key: 'N', desc: 'Next available player from the database queue' },
     { key: 'Esc', desc: 'Close any active modal or search' },
   ];
 

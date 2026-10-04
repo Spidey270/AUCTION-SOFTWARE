@@ -15,6 +15,22 @@ export default function RivalsRadar({
   const [editPurse, setEditPurse] = useState('');
   const [expandedRival, setExpandedRival] = useState(null);
 
+  const heatmapRows = [
+    { label: 'Desperate', threshold: 0.9 },
+    { label: 'High', threshold: 0.7 },
+    { label: 'Medium', threshold: 0.45 },
+    { label: 'Low', threshold: 0.2 },
+    { label: 'Idle', threshold: 0 }
+  ];
+
+  const getHeatColor = (pressure) => {
+    if (pressure >= 0.85) return 'bg-rose-500/90 border-rose-400/80 shadow-[0_0_20px_rgba(244,63,94,0.25)]';
+    if (pressure >= 0.7) return 'bg-amber-500/80 border-amber-400/80 shadow-[0_0_20px_rgba(251,191,36,0.18)]';
+    if (pressure >= 0.45) return 'bg-orange-500/75 border-orange-400/70';
+    if (pressure >= 0.2) return 'bg-cyan-500/70 border-cyan-400/70';
+    return 'bg-slate-700/80 border-slate-600/70';
+  };
+
   const handleCreate = (e) => {
     e.preventDefault();
     if (!newTeamName.trim()) return;
@@ -54,6 +70,55 @@ export default function RivalsRadar({
       </div>
 
       {/* Rivals Grid / Table */}
+      <div className="mb-4 rounded-2xl border border-slate-800 bg-slate-950/60 p-3">
+        <div className="flex items-center justify-between gap-2 mb-3">
+          <span className="text-[10px] uppercase tracking-[0.2em] text-slate-400 font-bold">Rival pressure heatmap</span>
+          <div className="flex items-center gap-1.5 text-[9px] text-slate-400">
+            {heatmapRows.map((row) => (
+              <span key={row.label} className={`px-1.5 py-0.5 rounded border ${getHeatColor(row.threshold).split(' ').slice(0, 2).join(' ')}`}>
+                {row.label}
+              </span>
+            ))}
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-2">
+          {rivals.map((rival) => {
+            const purseRemaining = Math.max(0, preset.totalPurse - (rival.purseSpent || 0));
+            const playersCount = rival.playersCount || 0;
+            const slotsLeft = Math.max(0, preset.minSquad - playersCount);
+            const maxBid = calculateMaxSafeBid(
+              purseRemaining,
+              playersCount,
+              preset.minSquad,
+              preset.maxSquad,
+              preset.basePriceDefault
+            );
+            const canAffordActive = activePlayer ? maxBid >= (activePlayer.basePrice || preset.basePriceDefault) : true;
+            const isCrippled = purseRemaining < (preset.totalPurse * 0.25) && slotsLeft > 5;
+            const pursePercent = Math.min(100, Math.max(0, (purseRemaining / preset.totalPurse) * 100));
+            const roleNeedBoost = activePlayer && rival.acquired ? rival.acquired.some((p) => p.role === activePlayer.role) ? 0.12 : 0.18 : 0.12;
+            const pressure = canAffordActive
+              ? Math.min(1, (pursePercent / 100) * 0.55 + (slotsLeft > 0 ? 0.25 : 0.1) + (isCrippled ? 0.2 : 0) + roleNeedBoost)
+              : Math.max(0.05, (pursePercent / 100) * 0.2 + (slotsLeft > 0 ? 0.08 : 0));
+            const pressureTag = isCrippled ? 'Cash-strapped bidder' : canAffordActive ? 'Live pressure threat' : 'Budget-limited';
+
+              return (
+                <div key={rival.id} className={`rounded-xl border p-2.5 transition-all ${getHeatColor(pressure)}`}>
+                  <div className="flex items-center justify-between gap-2 mb-1">
+                    <span className="text-[11px] font-bold text-white truncate">{rival.name}</span>
+                    <span className="text-[9px] font-bold uppercase tracking-wider text-slate-100">{pressure >= 0.85 ? 'Desperate' : pressure >= 0.7 ? 'High' : pressure >= 0.45 ? 'Medium' : pressure >= 0.2 ? 'Low' : 'Idle'}</span>
+                  </div>
+                  <div className="text-[10px] text-slate-100/90 font-medium">{pressureTag}</div>
+                  <div className="mt-2 h-1.5 rounded-full bg-slate-950/60 overflow-hidden">
+                    <div className="h-full rounded-full bg-white/70" style={{ width: `${Math.round(pressure * 100)}%` }} />
+                  </div>
+                </div>
+              );
+            })}
+        </div>
+      </div>
+
       <div className="flex-1 overflow-y-auto space-y-2.5 pr-1 max-h-[360px]">
         {rivals.map((rival) => {
           const purseRemaining = Math.max(0, preset.totalPurse - (rival.purseSpent || 0));
@@ -71,6 +136,7 @@ export default function RivalsRadar({
           const canAffordActive = activePlayer ? maxBid >= (activePlayer.basePrice || preset.basePriceDefault) : true;
           const isCrippled = purseRemaining < (preset.totalPurse * 0.25) && slotsLeft > 5;
           const pursePercent = Math.min(100, Math.max(0, (purseRemaining / preset.totalPurse) * 100));
+          const pressureTag = isCrippled ? 'Cash-strapped bidder' : canAffordActive ? 'Live pressure threat' : 'Budget-limited';
 
           return (
             <div
@@ -87,12 +153,9 @@ export default function RivalsRadar({
                   <span className="text-xs font-bold text-white tracking-wide">
                     {rival.name}
                   </span>
-                  {isCrippled && (
-                    <span className="px-1.5 py-0.2 rounded text-[9px] font-bold uppercase tracking-wider bg-rose-500/20 text-rose-300 border border-rose-500/30 flex items-center gap-1">
-                      <TrendingDown className="w-2.5 h-2.5" />
-                      Cash Strapped
-                    </span>
-                  )}
+                  <span className={`px-1.5 py-0.2 rounded text-[9px] font-bold uppercase tracking-wider border ${isCrippled ? 'bg-rose-500/20 text-rose-300 border-rose-500/30' : 'bg-cyan-500/10 text-cyan-300 border-cyan-500/30'}`}>
+                    {pressureTag}
+                  </span>
                 </div>
 
                 <div className="flex items-center gap-1.5">
@@ -114,6 +177,14 @@ export default function RivalsRadar({
                     <Trash2 className="w-3 h-3" />
                   </button>
                 </div>
+              </div>
+
+              <div className="mb-2 text-[10px] text-slate-300 bg-slate-950/60 border border-slate-800 rounded-lg px-2 py-1.5">
+                {isCrippled
+                  ? `${rival.name} is under severe purse pressure and may overbid on a role need.`
+                  : canAffordActive
+                  ? `${rival.name} can still afford this player and remains a live threat.`
+                  : `${rival.name} is likely to back away unless the player fits a must-have role.`}
               </div>
 
               {/* Quick metrics row */}

@@ -3,9 +3,43 @@
 @tailwind utilities;
 
 @layer base {
+  :root {
+    color-scheme: dark;
+    --app-bg: #101615;
+    --app-surface: #171f1d;
+    --app-surface-raised: #1d2724;
+    --app-border: #303b36;
+    --app-text: #e8ece8;
+    --app-muted: #98a39c;
+    --app-accent: #b5c49a;
+    --app-accent-strong: #d2b77c;
+  }
+
   body {
-    @apply bg-war-bg text-slate-100 font-sans antialiased overflow-x-hidden selection:bg-cyan-500 selection:text-black;
+    @apply text-slate-100 font-sans antialiased overflow-x-hidden;
+    background: var(--app-bg);
+    color: var(--app-text);
     min-height: 100vh;
+  }
+
+  ::selection {
+    color: #101615;
+    background: var(--app-accent);
+  }
+
+  button,
+  input,
+  select,
+  textarea {
+    font: inherit;
+  }
+
+  button:focus-visible,
+  input:focus-visible,
+  select:focus-visible,
+  textarea:focus-visible {
+    outline: 2px solid var(--app-accent);
+    outline-offset: 2px;
   }
 }
 
@@ -16,30 +50,151 @@
 }
 
 ::-webkit-scrollbar-track {
-  background: #090d16;
+  background: #101615;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #334155;
+  background: #46534b;
   border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #06b6d4;
+  background: #b5c49a;
 }
 
-/* Glassmorphism helpers */
 .glass-panel {
-  background: rgba(15, 23, 42, 0.75);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(51, 65, 85, 0.6);
+  background: var(--app-surface);
+  border: 1px solid var(--app-border);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.12);
 }
 
 .glass-card {
-  background: rgba(30, 41, 59, 0.6);
-  backdrop-filter: blur(8px);
-  border: 1px solid rgba(51, 65, 85, 0.4);
+  background: var(--app-surface-raised);
+  border: 1px solid var(--app-border);
+}
+
+.control-header {
+  background: rgba(16, 22, 21, 0.96);
+  border-color: var(--app-border);
+  backdrop-filter: none;
+}
+
+.control-header button {
+  border-radius: 0.55rem;
+  box-shadow: none;
+}
+
+.auction-shell {
+  background: var(--app-bg);
+}
+
+.auction-shell > main {
+  max-width: 1540px;
+}
+
+.auction-shell [class*="rounded-2xl"] {
+  border-radius: 0.8rem;
+}
+
+.auction-shell [class*="rounded-3xl"] {
+  border-radius: 0.9rem;
+}
+
+.auction-shell [class*="shadow-glow"],
+.auction-shell [class*="shadow-2xl"] {
+  box-shadow: none !important;
+}
+
+.auction-shell [class*="animate-pulse"],
+.auction-shell [class*="animate-ping"] {
+  animation: none !important;
+}
+
+.auction-shell [class*="bg-gradient-to"] {
+  background-image: none !important;
+  background-color: #26312b !important;
+}
+
+.auction-shell [class*="text-cyan-"] {
+  color: #c4d0b3 !important;
+}
+
+.auction-shell [class*="border-cyan-"] {
+  border-color: #46534b !important;
+}
+
+.auction-shell [class*="bg-cyan-"] {
+  background-color: #202825 !important;
+}
+
+.auction-shell [class*="text-indigo-"] {
+  color: #b9c2b8 !important;
+}
+
+.auction-shell [class*="border-indigo-"] {
+  border-color: #46534b !important;
+}
+
+.auction-shell [class*="bg-indigo-"] {
+  background-color: #202825 !important;
+}
+
+.auction-shell [class*="text-amber-"] {
+  color: #d2b77c !important;
+}
+
+.auction-shell [class*="border-amber-"] {
+  border-color: #5c5037 !important;
+}
+
+.auction-shell [class*="bg-amber-"] {
+  background-color: #28251e !important;
+}
+
+.live-auction {
+  --live-accent: var(--app-accent);
+}
+
+.live-auction .live-aura {
+  display: none;
+}
+
+.live-auction .bid-price {
+  color: #f1f2e9;
+  letter-spacing: -0.06em;
+}
+
+.auction-home {
+  background:
+    radial-gradient(ellipse at 75% 0%, rgba(181, 196, 154, 0.07), transparent 36rem),
+    var(--app-bg);
+}
+
+.home-hero {
+  background: #171f1d;
+  border-color: var(--app-border);
+  box-shadow: none;
+}
+
+.home-tournament-card {
+  background: var(--app-surface);
+  border-color: var(--app-border);
+  border-radius: 0.9rem;
+}
+
+.home-tournament-card:hover {
+  border-color: #68796d;
+}
+
+.quiet-button {
+  box-shadow: none !important;
+  letter-spacing: 0.01em !important;
+  text-transform: none !important;
+}
+
+.metric-label {
+  color: var(--app-muted);
+  letter-spacing: 0.08em;
 }
 
 /* Pulsing radar for live bids */

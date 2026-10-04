@@ -15,7 +15,7 @@ import {
   Zap
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
-import { calculateProjectedValue } from '../utils/auctionMath';
+import { calculateMaxSafeBid, calculateProjectedValue } from '../utils/auctionMath';
 
 export default function HammerArena({
   activePlayer,
@@ -24,23 +24,65 @@ export default function HammerArena({
   teamSummary,
   rivals,
   myTeamName = 'My Team',
+  auctionLog = [],
+  auctionPlan = {},
+  auctionFocus = false,
+  keyboardEnabled = true,
+  onToggleAuctionFocus,
   onWinPlayer,
   onSellToRival,
   onMarkUnsold,
   onNextPlayer,
+  onSelectPlayerForHammer,
   onOpenAiStrategist
 }) {
   const [currentBid, setCurrentBid] = useState(0);
-  const [leadingTeam, setLeadingTeam] = useState('me'); // 'me' or rival id
   const [selectedRivalId, setSelectedRivalId] = useState(rivals[0]?.id || '');
+  const [decisionNote, setDecisionNote] = useState('');
 
   // Reset bid when active player changes
   useEffect(() => {
     if (activePlayer) {
       setCurrentBid(activePlayer.basePrice || preset.basePriceDefault);
-      setLeadingTeam('me');
+      setDecisionNote('');
     }
   }, [activePlayer?.id]);
+
+  useEffect(() => {
+    if (!keyboardEnabled) return undefined;
+    const handleAuctionKeys = (event) => {
+      if (!activePlayer || event.repeat || ['INPUT', 'SELECT', 'TEXTAREA'].includes(event.target.tagName)) return;
+      const key = event.key.toLowerCase();
+      const incrementIndex = Number.parseInt(key, 10) - 1;
+
+      if (incrementIndex >= 0 && incrementIndex < (preset.bidIncrements || []).length) {
+        event.preventDefault();
+        const increment = Number(preset.bidIncrements[incrementIndex]);
+        setCurrentBid(previous => Number((previous + increment).toFixed(2)));
+      } else if (key === 'w' || event.key === 'Enter') {
+        event.preventDefault();
+        const roleLimit = preset[`maxRole_${activePlayer.role}`];
+        const roleCount = teamSummary.roleCounts?.[activePlayer.role] || 0;
+        const canWin = currentBid <= teamSummary.maxSafeBid &&
+          !teamSummary.isMaxSquadFull &&
+          !(activePlayer.overseas && teamSummary.overseasLimitHit) &&
+          !(roleLimit !== undefined && roleCount >= roleLimit);
+        if (canWin) {
+          onWinPlayer(activePlayer, currentBid, decisionNote);
+        }
+      } else if (key === 'r') {
+        const rivalId = selectedRivalId || rivals[0]?.id;
+        if (rivalId) onSellToRival(activePlayer, rivalId, currentBid, decisionNote);
+      } else if (key === 'u') {
+        onMarkUnsold(activePlayer, decisionNote);
+      } else if (key === 'n') {
+        onNextPlayer();
+      }
+    };
+
+    window.addEventListener('keydown', handleAuctionKeys);
+    return () => window.removeEventListener('keydown', handleAuctionKeys);
+  }, [activePlayer, currentBid, decisionNote, onWinPlayer, onSellToRival, onMarkUnsold, onNextPlayer, preset.bidIncrements, selectedRivalId, rivals, teamSummary, keyboardEnabled]);
 
   if (!activePlayer) {
     return (
@@ -65,6 +107,10 @@ export default function HammerArena({
 
   const roleObj = preset.roles.find(r => r.id === activePlayer.role);
   const fairValue = calculateProjectedValue(activePlayer, preset, 1.0, allPlayers);
+  const alternatives = (allPlayers || [])
+    .filter(player => !player.status && player.id !== activePlayer.id && player.role === activePlayer.role)
+    .sort((a, b) => (Number(b.rating) || 0) - (Number(a.rating) || 0))
+    .slice(0, 3);
   
   // Rule Checks
   const isOverSafeBid = currentBid > teamSummary.maxSafeBid;
@@ -74,9 +120,60 @@ export default function HammerArena({
   // Role Limit Check
   const maxForThisRole = preset[`maxRole_${activePlayer.role}`];
   const currentCountForRole = teamSummary.roleCounts ? teamSummary.roleCounts[activePlayer.role] || 0 : 0;
+  const playerPlan = auctionPlan.targetSettings?.[activePlayer.id] || {};
+  const personalCeiling = Number(playerPlan.ceiling);
+  const hasPersonalCeiling = Number.isFinite(personalCeiling) && personalCeiling > 0;
+  const roleTarget = Number(auctionPlan.roleTargets?.[activePlayer.role] || 0);
+  const roleGap = Math.max(0, roleTarget - currentCountForRole);
   const isOverRoleLimit = maxForThisRole !== undefined && currentCountForRole >= maxForThisRole;
 
   const isLegalForMe = !isOverSafeBid && !isOverMaxSquad && !isOverForeign && !isOverRoleLimit;
+  const personalLimit = hasPersonalCeiling ? Math.min(personalCeiling, teamSummary.maxSafeBid) : teamSummary.maxSafeBid;
+  const isAvoidTarget = playerPlan.priority === 'avoid';
+  const priorityMultiplier = playerPlan.priority === 'must-have' ? 1.2 : playerPlan.priority === 'backup' ? 0.95 : 1.08;
+  const smartMaxBid = Math.min(personalLimit, Number((fairValue * priorityMultiplier).toFixed(2)));
+  const pressureBid = Math.min(personalLimit, Number((fairValue * (priorityMultiplier + 0.1)).toFixed(2)));
+  const walkAwayValue = Math.min(activePlayer.basePrice, Number((fairValue * 0.88).toFixed(2)));
+  const withinPersonalCeiling = !hasPersonalCeiling || currentBid <= personalCeiling;
+  const shouldRecommendBid = isLegalForMe && withinPersonalCeiling && currentBid <= fairValue * 1.35 && !isAvoidTarget;
+  const nextRiskText =
+    isOverSafeBid
+      ? `This exceeds your safety ceiling by ${preset.currency}${(currentBid - teamSummary.maxSafeBid).toFixed(2)} ${preset.unit}.`
+      : isOverRoleLimit
+      ? `You already have enough ${roleObj?.label || activePlayer.role} slots for a legal bid.`
+      : isOverForeign
+      ? `Overseas cap is full; this purchase would break the roster rule.`
+      : !withinPersonalCeiling
+      ? `Above your ${playerPlan.priority || 'value'} target ceiling (${preset.currency}${personalCeiling.toFixed(2)}). Legal, but planned as a walk-away.`
+      : isAvoidTarget
+      ? 'You marked this player to avoid; bidding is still legally possible but against your plan.'
+      : `This is a legal bid. Keep enough room to finish your minimum squad.`;
+
+  const availablePlayers = allPlayers.filter(player => !player.status);
+  const nomination = preset.roles
+    .map(role => {
+      const target = Number(auctionPlan.roleTargets?.[role.id] || 0);
+      const count = teamSummary.roleCounts?.[role.id] || 0;
+      const candidate = availablePlayers
+        .filter(player => player.role === role.id)
+        .sort((a, b) => (Number(b.rating) || 0) - (Number(a.rating) || 0))[0];
+      return { role, deficit: Math.max(0, target - count), candidate };
+    })
+    .filter(item => item.deficit > 0 && item.candidate && item.candidate.id !== activePlayer.id)
+    .sort((a, b) => b.deficit - a.deficit || (Number(b.candidate.rating) || 0) - (Number(a.candidate.rating) || 0))[0];
+
+  const rivalThreats = rivals.map(rival => {
+    const rivalRemaining = Math.max(0, preset.totalPurse - Number(rival.purseSpent || 0));
+    const rivalSlots = Number(rival.playersCount || 0);
+    const rivalMaxBid = calculateMaxSafeBid(rivalRemaining, rivalSlots, preset.minSquad, preset.maxSquad, preset.basePriceDefault);
+    const rolePlayers = (rival.acquired || []).filter(player => player.role === activePlayer.role).length;
+    return {
+      rival,
+      maxBid: rivalMaxBid,
+      score: (rivalMaxBid >= activePlayer.basePrice ? 2 : 0) + (rolePlayers === 0 ? 1 : 0) + Math.min(1, rivalRemaining / preset.totalPurse)
+    };
+  }).sort((a, b) => b.score - a.score).slice(0, 3);
+
   // Valuation status
   let valuationTag = { label: 'FAIR VALUE', color: 'text-cyan-400 border-cyan-500/30 bg-cyan-500/10' };
   if (currentBid <= fairValue * 0.8) {
@@ -90,6 +187,10 @@ export default function HammerArena({
     setCurrentBid(prev => Number((prev + increment).toFixed(2)));
   };
 
+  const handleSuggestedBid = (target) => {
+    if (Number.isFinite(target)) setCurrentBid(Number(Math.max(0, target).toFixed(2)));
+  };
+
   // Handle Winning
   const handleWin = () => {
     if (!isLegalForMe) return;
@@ -98,20 +199,18 @@ export default function HammerArena({
       spread: 70,
       origin: { y: 0.6 }
     });
-    onWinPlayer(activePlayer, currentBid);
+    onWinPlayer(activePlayer, currentBid, decisionNote);
   };
 
   const handleRivalSale = () => {
     const targetRival = rivals.find(r => r.id === selectedRivalId) || rivals[0];
     if (targetRival) {
-      onSellToRival(activePlayer, targetRival.id, currentBid);
+      onSellToRival(activePlayer, targetRival.id, currentBid, decisionNote);
     }
   };
 
   return (
-    <div className="glass-panel rounded-2xl border border-slate-800 p-6 flex flex-col justify-between relative overflow-hidden shadow-2xl">
-      {/* Ambient glowing background aura */}
-      <div className="absolute top-0 right-0 w-96 h-96 bg-cyan-500/5 rounded-full blur-3xl pointer-events-none -mr-20 -mt-20"></div>
+    <div className={`live-auction glass-panel rounded-xl ${auctionFocus ? 'p-8 min-h-[70vh]' : 'p-6'} flex flex-col justify-between relative overflow-hidden`}>
 
       {/* TOP HEADER: Player Identity Card */}
       <div>
@@ -119,11 +218,11 @@ export default function HammerArena({
           <div className="flex items-center gap-4">
             {/* Rating Hex Badge */}
             <div className="relative flex-shrink-0">
-              <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-amber-500/20 via-slate-900 to-indigo-950 border-2 border-amber-500/40 flex flex-col items-center justify-center shadow-glow-gold">
-                <span className="text-[10px] font-mono uppercase text-amber-300 font-bold tracking-wider">
+              <div className="w-16 h-16 rounded-lg bg-[#28251e] border border-[#5c5037] flex flex-col items-center justify-center">
+                <span className="text-[10px] font-mono uppercase text-[#d2b77c] font-semibold tracking-wider">
                   RATING
                 </span>
-                <span className="text-2xl font-black font-mono text-white tracking-tight">
+                <span className="text-2xl font-bold font-mono text-white tracking-tight">
                   {activePlayer.rating}
                 </span>
               </div>
@@ -149,7 +248,7 @@ export default function HammerArena({
                   </span>
                 )}
               </div>
-              <h2 className="text-2xl lg:text-3xl font-black text-white tracking-tight">
+              <h2 className="text-2xl lg:text-3xl font-semibold text-white tracking-tight">
                 {activePlayer.name}
               </h2>
               {activePlayer.notes && (
@@ -161,7 +260,7 @@ export default function HammerArena({
           </div>
 
           {/* Base & Projected Value Benchmarks */}
-          <div className="flex items-center gap-3 bg-slate-900/90 p-2.5 rounded-xl border border-slate-800">
+          <div className="flex items-center gap-3 bg-[#121816] p-2.5 rounded-lg border border-slate-800">
             <div className="text-right">
               <div className="text-[10px] uppercase font-mono text-slate-500">Base Price</div>
               <div className="text-sm font-bold font-mono text-slate-300">
@@ -171,7 +270,7 @@ export default function HammerArena({
             <div className="h-7 w-[1px] bg-slate-800"></div>
             <div className="text-right">
               <div className="text-[10px] uppercase font-mono text-slate-500">Est. Fair Value</div>
-              <div className="text-sm font-bold font-mono text-cyan-300">
+              <div className="text-sm font-semibold font-mono text-[#b5c49a]">
                 {preset.currency} {fairValue.toFixed(2)} {preset.unit}
               </div>
             </div>
@@ -192,17 +291,133 @@ export default function HammerArena({
           </div>
         </div>
 
+        <div className="my-5 grid grid-cols-1 xl:grid-cols-12 gap-4">
+          <div className="xl:col-span-8 rounded-xl border border-slate-800 bg-[#121816] p-4">
+            <div className="flex items-center justify-between gap-3 mb-3">
+              <div className="flex items-center gap-2">
+                <Zap className="w-4 h-4 text-[#b5c49a]" />
+                <span className="text-xs text-slate-200 font-semibold">Bid guide</span>
+              </div>
+              <button
+                type="button"
+                onClick={onToggleAuctionFocus}
+                className="px-2.5 py-1 rounded-md border border-slate-700 bg-slate-900 text-[10px] text-slate-200 hover:border-[#788a79]"
+              >
+                {auctionFocus ? 'Exit Focus Mode' : 'Auction Focus Mode'}
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
+              <div className="rounded-lg border border-slate-800 bg-[#19211d] p-3">
+                <div className="text-[10px] uppercase tracking-wider text-slate-400">Recommendation</div>
+                <div className={`mt-2 text-lg font-black ${shouldRecommendBid ? 'text-emerald-300' : 'text-rose-300'}`}>{shouldRecommendBid ? 'BID' : 'PASS'}</div>
+              </div>
+              <div className="rounded-lg border border-slate-800 bg-[#19211d] p-3">
+                <div className="text-[10px] uppercase tracking-wider text-slate-400">Suggested ceiling</div>
+                <div className="mt-2 text-lg font-black text-white">{preset.currency}{smartMaxBid.toFixed(2)}</div>
+              </div>
+              <div className="rounded-lg border border-slate-800 bg-[#19211d] p-3">
+                <div className="text-[10px] uppercase tracking-wider text-slate-400">Check</div>
+                <div className="mt-2 text-sm font-bold text-white">{nextRiskText}</div>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              <button type="button" onClick={() => handleSuggestedBid(smartMaxBid)} className="quiet-button px-3 py-2 rounded-md bg-[#26312b] border border-[#46534b] text-[#c4d0b3] text-xs font-semibold">Suggested ceiling</button>
+              <button type="button" onClick={() => handleSuggestedBid(fairValue)} className="quiet-button px-3 py-2 rounded-md bg-slate-800 border border-slate-700 text-slate-200 text-xs font-semibold">Estimate</button>
+              <button type="button" onClick={() => handleSuggestedBid(pressureBid)} className="quiet-button px-3 py-2 rounded-md bg-slate-800 border border-slate-700 text-slate-200 text-xs font-semibold">Stretch bid</button>
+              <button type="button" onClick={() => handleSuggestedBid(walkAwayValue)} className="quiet-button px-3 py-2 rounded-md bg-slate-800 border border-slate-700 text-slate-300 text-xs font-semibold">Base / pass</button>
+            </div>
+            <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-3">
+                <div className="flex justify-between text-[10px] uppercase tracking-wider text-slate-400"><span>Role blueprint</span><span>{currentCountForRole} / {roleTarget || '—'}</span></div>
+                <p className="mt-1 text-xs text-white">{roleGap > 0 ? `Need ${roleGap} more ${roleObj?.label || activePlayer.role}${roleGap === 1 ? '' : 's'}.` : 'Role target met; this is optional depth.'}</p>
+                <div className="mt-2 h-1.5 rounded-full bg-slate-800 overflow-hidden"><div className={`h-full ${roleGap ? 'bg-amber-400' : 'bg-emerald-400'}`} style={{ width: `${roleTarget ? Math.min(100, currentCountForRole / roleTarget * 100) : 100}%` }} /></div>
+              </div>
+              <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-3">
+                <div className="flex justify-between text-[10px] uppercase tracking-wider text-slate-400"><span>Budget pacing</span><span>{preset.currency}{(teamSummary.purseSpent + currentBid).toFixed(2)} / {preset.currency}{(preset.totalPurse * (auctionPlan.budgetPercent ?? 100) / 100).toFixed(2)}</span></div>
+                <div className="mt-2 h-1.5 rounded-full bg-slate-800 overflow-hidden"><div className={`h-full ${teamSummary.purseSpent + currentBid > preset.totalPurse * (auctionPlan.budgetPercent ?? 100) / 100 ? 'bg-rose-400' : 'bg-cyan-400'}`} style={{ width: `${Math.min(100, (teamSummary.purseSpent + currentBid) / preset.totalPurse * 100)}%` }} /></div>
+                {hasPersonalCeiling && <p className="mt-1 text-[10px] text-amber-300">{playerPlan.priority || 'Target'} walk-away: {preset.currency}{personalCeiling.toFixed(2)}</p>}
+              </div>
+            </div>
+            {!auctionFocus && (
+              <div className="mt-3 grid md:grid-cols-2 gap-3">
+                <div className="rounded-xl border border-slate-800 bg-slate-900/50 p-3">
+                  <div className="text-[10px] uppercase tracking-wider text-cyan-300 font-bold mb-1">Next nomination</div>
+                  {nomination ? (
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-xs text-white">{nomination.candidate.name} · {nomination.role.id} · {nomination.candidate.rating}</span>
+                      <button type="button" onClick={() => onSelectPlayerForHammer?.(nomination.candidate)} className="px-2 py-1 rounded bg-cyan-500/15 text-cyan-300 text-[10px] font-bold">Call</button>
+                    </div>
+                  ) : <p className="text-[10px] text-slate-500">No unfilled blueprint role has a remaining player.</p>}
+                </div>
+                <div className="rounded-xl border border-slate-800 bg-slate-900/50 p-3">
+                  <div className="text-[10px] uppercase tracking-wider text-rose-300 font-bold mb-1">Likely rival threats</div>
+                  {rivalThreats.length ? rivalThreats.map(item => (
+                    <div key={item.rival.id} className="flex justify-between text-[10px] text-slate-300"><span>{item.rival.name}</span><span>safe max {preset.currency}{item.maxBid.toFixed(2)}</span></div>
+                  )) : <p className="text-[10px] text-slate-500">No rival teams tracked.</p>}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {!auctionFocus && <div className="xl:col-span-4 rounded-xl border border-slate-800 bg-[#121816] p-4">
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-[11px] uppercase tracking-[0.2em] text-slate-300 font-bold">Alternatives</span>
+              <span className="text-[10px] text-slate-500">Top 3 role peers</span>
+            </div>
+
+            <div className="space-y-2">
+              {alternatives.length > 0 ? alternatives.map((player) => (
+                <div key={player.id} className="rounded-xl border border-slate-800 bg-slate-900/60 p-2.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <div>
+                      <div className="text-xs font-bold text-white">{player.name}</div>
+                      <div className="text-[10px] text-slate-400">{player.role} · {player.rating} OVR</div>
+                    </div>
+                    <div className="text-[10px] font-mono text-cyan-300">{preset.currency}{Number(player.basePrice || 0).toFixed(2)}</div>
+                  </div>
+                </div>
+              )) : (
+                <div className="rounded-xl border border-dashed border-slate-700 p-3 text-[11px] text-slate-500">No comparable role alternatives in the current pool.</div>
+              )}
+            </div>
+          </div>}
+        </div>
+
+        {!auctionFocus && auctionLog && auctionLog.length > 0 && (
+          <div className="mb-5 rounded-2xl border border-slate-800 bg-slate-950/60 p-4">
+            <div className="flex items-center gap-2 mb-3">
+              <TrendingUp className="w-4 h-4 text-cyan-400" />
+              <span className="text-[11px] uppercase tracking-[0.2em] text-cyan-300 font-bold">Auction timeline</span>
+            </div>
+            <div className="space-y-2 max-h-40 overflow-y-auto pr-1">
+              {auctionLog.slice(0, 12).map((entry) => (
+                <div key={entry.id} className="flex items-center justify-between gap-3 rounded-xl border border-slate-800 bg-slate-900/80 px-3 py-2">
+                  <div>
+                    <div className="text-xs font-bold text-white">{entry.label}</div>
+                    <div className="text-[10px] text-slate-400">{entry.playerName}</div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-xs font-mono font-bold text-cyan-300">{entry.amount > 0 ? `${preset.currency}${Number(entry.amount).toFixed(2)}` : '—'}</div>
+                    <div className="text-[10px] text-slate-500">{new Date(entry.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* MIDDLE SECTION: Live Hammer Bid Center */}
-        <div className="my-5 bg-slate-950/70 rounded-2xl border border-slate-800/90 p-5 relative">
+        <div className="my-5 bg-[#121816] rounded-xl border border-slate-800 p-5 relative">
           
           <div className="flex items-center justify-between gap-4 mb-3 flex-wrap">
             <div className="flex items-center gap-2">
-              <span className="flex h-3 w-3 relative">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-3 w-3 bg-cyan-500"></span>
+              <span className="flex h-2.5 w-2.5 relative">
+              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-[#b5c49a]"></span>
               </span>
               <span className="text-xs font-mono uppercase tracking-widest text-cyan-400 font-bold">
-                LIVE AUCTION BIDDING
+                CURRENT BID
               </span>
             </div>
 
@@ -221,7 +436,7 @@ export default function HammerArena({
                 Current Hammer Price
               </div>
               <div className="flex items-baseline gap-2">
-                <span className="text-4xl lg:text-5xl font-black font-mono text-white tracking-tight">
+                <span className={`${auctionFocus ? 'text-6xl lg:text-7xl' : 'text-4xl lg:text-5xl'} bid-price font-bold font-mono tracking-tight`}>
                   {preset.currency} {currentBid.toFixed(2)}
                 </span>
                 <span className="text-xl font-bold font-mono text-slate-400">
@@ -266,13 +481,13 @@ export default function HammerArena({
                 Quick Raise (Fast Hammer)
               </div>
               <div className="grid grid-cols-2 gap-2">
-                {preset.bidIncrements.map((inc) => (
+                {preset.bidIncrements.map((inc, index) => (
                   <button
                     key={inc}
                     onClick={() => handleAddBid(inc)}
                     className="px-3 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700/80 text-white font-mono font-bold text-sm transition hover:border-cyan-500/50 flex items-center justify-center gap-1 active:scale-95"
                   >
-                    <span>+{preset.currency}{inc.toFixed(2)}</span>
+                    <span>{index + 1}: +{preset.currency}{inc.toFixed(2)}</span>
                   </button>
                 ))}
               </div>
@@ -296,6 +511,17 @@ export default function HammerArena({
                 </button>
               </div>
             </div>
+
+            <label className="mb-3 block text-[10px] uppercase tracking-wider text-slate-400">
+              Decision note (optional; saved with outcome)
+              <input
+                type="text"
+                value={decisionNote}
+                onChange={event => setDecisionNote(event.target.value)}
+                placeholder="e.g. fills wicketkeeper gap / passed above ceiling"
+                className="mt-1 w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500"
+              />
+            </label>
 
           </div>
         </div>
@@ -388,7 +614,7 @@ export default function HammerArena({
           {/* UNSOLD / PASS */}
           <div className="md:col-span-2">
             <button
-              onClick={() => onMarkUnsold(activePlayer)}
+              onClick={() => onMarkUnsold(activePlayer, decisionNote)}
               className="w-full py-3.5 px-3 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-400 hover:text-slate-200 font-bold text-xs uppercase tracking-wider transition flex items-center justify-center gap-1.5"
             >
               <XCircle className="w-4 h-4 text-rose-400" />

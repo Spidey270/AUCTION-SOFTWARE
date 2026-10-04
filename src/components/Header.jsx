@@ -26,19 +26,25 @@ export default function Header({
   onOpenShortcuts,
   onExitToHome,
   onToggleAiDrawer,
-  onOpenApiKeyModal
+  onOpenApiKeyModal,
+  onUndoLastAction,
+  hasUndoHistory = false,
+  onOpenPlan,
+  onOpenReview,
+  onStartPractice,
+  isPractice = false
 }) {
   const hasApiKey = hasAiConfigured();
 
   return (
-    <header className="sticky top-0 z-40 bg-[#090d16]/90 backdrop-blur-md border-b border-slate-800 px-6 py-3">
+    <header className="control-header sticky top-0 z-40 border-b px-6 py-3">
       <div className="max-w-[1720px] mx-auto flex items-center justify-between gap-4 flex-wrap">
         
         {/* Brand / Logo + Exit to Home Button */}
         <div className="flex items-center gap-3">
           <button
             onClick={onExitToHome}
-            className="p-2 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-400 hover:text-white transition flex items-center gap-1.5 text-xs font-semibold"
+            className="p-2 rounded-lg bg-[#202825] hover:bg-[#29332e] border border-slate-700 text-slate-400 hover:text-white transition flex items-center gap-1.5 text-xs font-semibold"
             title="Return to Tournament Hub"
           >
             <ArrowLeft className="w-4 h-4" />
@@ -52,11 +58,11 @@ export default function Header({
               <h1 className="text-base font-extrabold tracking-tight text-white flex items-center gap-1.5 truncate max-w-[280px]">
                 {tournamentName || 'AUCTION WAR ROOM'}
               </h1>
-              <span className="text-[10px] font-mono uppercase px-1.5 py-0.5 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">
+              <span className="text-[10px] px-1.5 py-0.5 rounded bg-[#252e29] text-[#c4d0b3] border border-[#46534b]">
                 👑 {myTeamName}
               </span>
             </div>
-            <p className="text-[11px] text-slate-400 font-mono">
+            <p className="text-[11px] text-slate-400">
               Purse: {preset.currency}{preset.totalPurse} {preset.unit} | Min Squad: {preset.minSquad}
             </p>
           </div>
@@ -65,12 +71,12 @@ export default function Header({
         {/* Live HUD Quick Stat Badges */}
         <div className="flex items-center gap-3">
           {/* Purse Remaining */}
-          <div className="bg-slate-900/80 border border-slate-800/80 rounded-xl px-4 py-1.5 flex items-center gap-3">
+          <div className="bg-[#171f1d] border border-slate-800 rounded-lg px-4 py-1.5 flex items-center gap-3">
             <div>
               <div className="text-[10px] uppercase font-mono tracking-wider text-slate-400">
                 Purse Left
               </div>
-              <div className="text-base font-black font-mono text-cyan-400 flex items-baseline gap-1">
+              <div className="text-base font-bold font-mono text-[#b5c49a] flex items-baseline gap-1">
                 {preset.currency} {teamSummary.purseRemaining.toFixed(2)}
                 <span className="text-[11px] text-slate-400 font-normal">{preset.unit}</span>
               </div>
@@ -79,19 +85,19 @@ export default function Header({
               <div className="text-[10px] uppercase font-mono tracking-wider text-slate-400">
                 Max Safe Bid
               </div>
-              <div className="text-base font-black font-mono text-emerald-400">
+              <div className="text-base font-bold font-mono text-[#b5c49a]">
                 {preset.currency} {teamSummary.maxSafeBid.toFixed(2)}
               </div>
             </div>
           </div>
 
           {/* Squad & Rating Badges */}
-          <div className="bg-slate-900/80 border border-slate-800/80 rounded-xl px-4 py-1.5 flex items-center gap-3">
+          <div className="bg-[#171f1d] border border-slate-800 rounded-lg px-4 py-1.5 flex items-center gap-3">
             <div>
               <div className="text-[10px] uppercase font-mono tracking-wider text-slate-400">
                 Squad
               </div>
-              <div className="text-base font-black font-mono text-white">
+              <div className="text-base font-bold font-mono text-white">
                 {teamSummary.count} <span className="text-xs text-slate-500 font-normal">/ {preset.maxSquad}</span>
               </div>
             </div>
@@ -99,7 +105,7 @@ export default function Header({
               <div className="text-[10px] uppercase font-mono tracking-wider text-slate-400">
                 Total Rating
               </div>
-              <div className="text-base font-black font-mono text-amber-400 flex items-center justify-end gap-1">
+              <div className="text-base font-bold font-mono text-[#d2b77c] flex items-center justify-end gap-1">
                 <Trophy className="w-3.5 h-3.5 text-amber-400" />
                 {teamSummary.totalRating}
               </div>
@@ -110,18 +116,56 @@ export default function Header({
         {/* Action Controls */}
         <div className="flex items-center gap-2">
           
+          <button
+            onClick={onOpenPlan}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#252e29] hover:bg-[#303b35] border border-[#46534b] text-[#c4d0b3] text-xs font-semibold transition"
+            title="Open the target board and squad plan"
+          >
+            <Trophy className="w-3.5 h-3.5" />
+            <span>Plan</span>
+          </button>
+          <button
+            onClick={onOpenReview}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#202825] hover:bg-[#29332e] border border-slate-700 text-slate-200 text-xs font-semibold transition"
+            title="Review the auction and simulate alternatives"
+          >
+            <Zap className="w-3.5 h-3.5" />
+            <span>Review</span>
+          </button>
+          {!isPractice && (
+            <button
+              onClick={onStartPractice}
+              className="px-3 py-1.5 rounded-lg bg-[#202825] hover:bg-[#29332e] border border-slate-700 text-slate-300 text-xs font-semibold transition"
+              title="Create a separate practice copy with auction progress reset"
+            >
+              Practice
+            </button>
+          )}
+          {isPractice && <span className="px-2 py-1 rounded bg-[#28251e] border border-[#5c5037] text-[#d2b77c] text-[10px] font-semibold">Practice copy</span>}
+
           {/* AI Strategist Button */}
           <button
             onClick={onToggleAiDrawer}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-cyan-600/30 to-indigo-600/30 hover:from-cyan-600/50 hover:to-indigo-600/50 border border-cyan-500/40 text-cyan-300 text-xs font-bold shadow-glow-cyan transition"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#202825] hover:bg-[#29332e] border border-slate-700 text-slate-200 text-xs font-semibold transition"
           >
-            <Sparkles className="w-3.5 h-3.5 text-cyan-400 animate-pulse" />
-            <span>AI Strategist</span>
+            <Bot className="w-3.5 h-3.5 text-[#b5c49a]" />
+            <span>Assistant</span>
           </button>
+
+          {hasUndoHistory && (
+            <button
+              onClick={onUndoLastAction}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#28251e] hover:bg-[#332e23] border border-[#5c5037] text-[#d2b77c] text-xs font-semibold transition"
+              title="Undo the last auction action"
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Undo</span>
+            </button>
+          )}
 
           <button
             onClick={onOpenApiKeyModal}
-            className="p-2 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-400 hover:text-amber-400 transition"
+            className="p-2 rounded-lg bg-[#202825] hover:bg-[#29332e] border border-slate-700 text-slate-400 hover:text-[#d2b77c] transition"
             title="Configure Gemini API Key"
           >
             <Key className="w-3.5 h-3.5" />
@@ -129,24 +173,24 @@ export default function Header({
 
           <button
             onClick={onOpenImport}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-200 text-xs font-medium transition"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#202825] hover:bg-[#29332e] border border-slate-700 text-slate-200 text-xs font-medium transition"
             title="Import Player List from CSV or Excel"
           >
-            <Upload className="w-3.5 h-3.5 text-cyan-400" />
+            <Upload className="w-3.5 h-3.5 text-[#b5c49a]" />
             <span className="hidden sm:inline">Import CSV</span>
           </button>
 
           <button
             onClick={onOpenSettings}
-            className="p-2 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-400 hover:text-white transition"
+            className="p-2 rounded-lg bg-[#202825] hover:bg-[#29332e] border border-slate-700 text-slate-400 hover:text-white transition"
             title="Auction Rules & Constraints"
           >
-            <Sliders className="w-4 h-4 text-amber-400" />
+            <Sliders className="w-4 h-4 text-[#d2b77c]" />
           </button>
 
           <button
             onClick={onOpenShortcuts}
-            className="p-2 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-400 hover:text-white transition"
+            className="p-2 rounded-lg bg-[#202825] hover:bg-[#29332e] border border-slate-700 text-slate-400 hover:text-white transition"
             title="Keyboard Shortcuts Guide"
           >
             <Keyboard className="w-4 h-4" />
@@ -154,7 +198,7 @@ export default function Header({
 
           <button
             onClick={onResetAuction}
-            className="p-2 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 text-rose-400 transition"
+            className="p-2 rounded-lg bg-[#2b2220] hover:bg-[#352725] border border-[#60413b] text-[#d49a8c] transition"
             title="Reset All Auction Progress"
           >
             <RotateCcw className="w-4 h-4" />
@@ -165,5 +209,3 @@ export default function Header({
     </header>
   );
 }
-
-

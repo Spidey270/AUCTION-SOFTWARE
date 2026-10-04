@@ -34,6 +34,14 @@ A high-performance desktop application designed for **college and tournament spo
   $$\text{Max Safe Bid} = \text{Purse Remaining} - (\text{Empty Mandatory Slots} - 1) \times \text{Base Price}$$
 * Triggers a hard lock and Red Alert if a bid would make it impossible to legally fill your roster.
 
+### 5. 🎯 Auction Plan, Live Focus & Post-Auction Review
+* Set a role-by-role squad blueprint, planned purse ceiling, and custom bid increments before bidding.
+* Star players in the market to create a target board with a priority and personal walk-away price.
+* During bidding, see role gaps, budget pace, a suggested next nomination, rival threats, and available role alternatives.
+* Use **Auction Focus Mode** to hide supporting panels, and add an optional note to each recorded outcome.
+* Create a separate **Practice** copy, then review the full outcome log, plan-versus-result summary, value estimates, and hypothetical purchases.
+* Undo the latest change or restore to a recent checkpoint from the review panel.
+
 ---
 
 ## 🔑 AI Configuration (Gemini 2.5 Flash)
@@ -48,20 +56,24 @@ A high-performance desktop application designed for **college and tournament spo
 | Key | Action |
 |---|---|
 | `/` | Instant search & filter players |
-| `W` or `Enter` | Hammer Down: Won by Me |
-| `R` | Sold to selected Rival |
+| `W` or `Enter` | Record the current displayed bid as won by me |
+| `R` | Record the current displayed bid as sold to selected rival |
 | `U` | Mark player Unsold |
-| `1`, `2`, `3`, `4` | Rapid bid increments (+0.2, +0.5, +1, +2) |
-| `A` | Toggle AI Strategist Drawer |
-| `N` or `Space` | Next player from queue |
+| `1`, `2`, `3`, `4` | Raise the displayed bid by the configured increment |
+| `A` | Toggle AI Strategist drawer |
+| `N` | Select the next available player |
 | `?` | Keyboard shortcuts cheat sheet |
+
+Bid increments can be changed in the **Plan** panel. Keyboard actions are disabled while a modal or the AI drawer is open.
 
 ---
 
-## 🚀 Desktop Launch
-* Double click the **`Auction War Room`** shortcut directly on your Windows Desktop.
-* Or run:
-  ```cmd
-  C:\Users\arjun\.gemini\antigravity\scratch\auction-warroom\launch-warroom.bat
-  ```
+## Desktop App (Windows)
+Auction Desk can run as a standalone Windows application. It stores tournament data locally in the app's browser storage.
 
+* For development, run `npm run app:dev`.
+* To create a Windows installer, run `npm run app:build`.
+* The installer and unpacked app are written to `release/`. The installer creates Start Menu and optional Desktop shortcuts.
+* Install once, then open **Auction Desk** like any other desktop app; Node.js is not required on the machine where the packaged app is installed.
+
+`npm run dev` remains available for browser development.
